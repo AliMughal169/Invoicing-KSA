@@ -1,0 +1,14 @@
+node_modules
+dist
+.next
+.turbo
+.env
+.env.local
+*.log
+.DS_Store
+coverage
+prisma/migrations/dev.db*
+node_modules/.pnpm/@next+swc-linux-arm64-musl@14.2.5/node_modules/@next/swc-linux-arm64-musl/next-swc.linux-arm64-musl.node
+node_modules/.pnpm/@next+swc-linux-arm64-gnu@14.2.5/node_modules/@next/swc-linux-arm64-gnu/next-swc.linux-arm64-gnu.node
+.pnpm-store/v3/files/a0/633e543c4a94b2dcae9290ce1ae43ff8374993c706574126fab09340d71ed085a44924810eeb2e3a5a7e9f1cc84d3abf4f9447aa39257d2cace229b6557a32
+.pnpm-store/v3/files/41/f0ca651ab9a2b639d0a8adc823e49b1154979d6a793396e0ca01a4bc56827360264b643829d7bf5a8f72db71d5a9b324b4f9669c659154b8b639bd3ff223d8

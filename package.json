@@ -1,0 +1,24 @@
+{
+  "name": "erp-saas",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "dev": "turbo run dev --parallel",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:generate": "pnpm --filter @erp/api db:generate",
+    "db:migrate": "pnpm --filter @erp/api db:migrate",
+    "db:push": "pnpm --filter @erp/api db:push",
+    "api:dev": "pnpm --filter @erp/api dev",
+    "web:dev": "pnpm --filter @erp/web dev"
+  },
+  "devDependencies": {
+    "turbo": "^2.0.6",
+    "typescript": "^5.5.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
