@@ -1,41 +1,99 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "../core/database/prisma.service";
 
-/**
- * Provisions a dedicated Postgres schema for a tenant.
- * The `public` schema holds platform tables (tenants/users/members),
- * while each tenant gets its own schema for business data.
- *
- * The MVP creates the schema and a minimal `_meta` table as a marker.
- * Real business tables (crm, invoicing...) will be added via per-tenant
- * migrations applied here.
- */
 @Injectable()
 export class TenantProvisionerService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Sanitize a slug into a safe Postgres schema name. */
   schemaNameFor(slug: string): string {
     const safe = slug.toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 40);
     return `tenant_${safe}`;
   }
 
   async provision(schema: string): Promise<void> {
-    await this.prisma.$executeRawUnsafe(
-      `CREATE SCHEMA IF NOT EXISTS "${schema}"`,
-    );
-    await this.prisma.$executeRawUnsafe(
-      `CREATE TABLE IF NOT EXISTS "${schema}"."_meta" (
-         key   text PRIMARY KEY,
-         value text NOT NULL,
-         created_at timestamptz NOT NULL DEFAULT now()
-       )`,
-    );
-    await this.prisma.$executeRawUnsafe(
-      `INSERT INTO "${schema}"."_meta" (key, value)
-       VALUES ('provisioned_at', now()::text)
-       ON CONFLICT (key) DO NOTHING`,
-    );
+    await this.prisma.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
+    const q = (sql: string) => this.prisma.$executeRawUnsafe(sql.replace(/__S__/g, schema));
+
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."_meta" (
+      key text PRIMARY KEY, value text NOT NULL,
+      created_at timestamptz NOT NULL DEFAULT now())`);
+
+    // CRM
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."companies" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      name text NOT NULL, vat_number text, created_at timestamptz DEFAULT now())`);
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."contacts" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      name text NOT NULL, email text, phone text,
+      company_id text REFERENCES "__S__"."companies"(id) ON DELETE SET NULL,
+      created_at timestamptz DEFAULT now())`);
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."opportunities" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      name text NOT NULL,
+      contact_id text REFERENCES "__S__"."contacts"(id) ON DELETE SET NULL,
+      stage text NOT NULL DEFAULT 'new',
+      amount_sar numeric(14,2) NOT NULL DEFAULT 0,
+      expected_close date, created_at timestamptz DEFAULT now())`);
+
+    // Invoicing
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."customers" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      name text NOT NULL, email text, vat_number text,
+      created_at timestamptz DEFAULT now())`);
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."products" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      sku text, name text NOT NULL,
+      price_sar numeric(14,2) NOT NULL DEFAULT 0,
+      vat_rate numeric(5,2) NOT NULL DEFAULT 15.00,
+      created_at timestamptz DEFAULT now())`);
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."invoices" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      number text NOT NULL,
+      customer_id text REFERENCES "__S__"."customers"(id) ON DELETE SET NULL,
+      issue_date date NOT NULL DEFAULT current_date,
+      due_date date,
+      status text NOT NULL DEFAULT 'draft',
+      subtotal numeric(14,2) NOT NULL DEFAULT 0,
+      vat_total numeric(14,2) NOT NULL DEFAULT 0,
+      total numeric(14,2) NOT NULL DEFAULT 0,
+      currency text NOT NULL DEFAULT 'SAR',
+      created_at timestamptz DEFAULT now())`);
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."invoice_lines" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      invoice_id text NOT NULL REFERENCES "__S__"."invoices"(id) ON DELETE CASCADE,
+      description text NOT NULL,
+      qty numeric(14,2) NOT NULL DEFAULT 1,
+      unit_price numeric(14,2) NOT NULL DEFAULT 0,
+      vat_rate numeric(5,2) NOT NULL DEFAULT 15.00,
+      line_total numeric(14,2) NOT NULL DEFAULT 0)`);
+
+    // Accounting
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."accounts" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      code text UNIQUE NOT NULL, name text NOT NULL, type text NOT NULL)`);
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."journal_entries" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      entry_date date NOT NULL DEFAULT current_date,
+      memo text, source_type text, source_id text,
+      created_at timestamptz DEFAULT now())`);
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."journal_lines" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      je_id text NOT NULL REFERENCES "__S__"."journal_entries"(id) ON DELETE CASCADE,
+      account_id text NOT NULL REFERENCES "__S__"."accounts"(id),
+      debit numeric(14,2) NOT NULL DEFAULT 0,
+      credit numeric(14,2) NOT NULL DEFAULT 0)`);
+
+    // Seed KSA Chart of Accounts (minimal)
+    await q(`INSERT INTO "__S__"."accounts" (code, name, type) VALUES
+      ('1000','Cash','asset'),
+      ('1100','Accounts Receivable','asset'),
+      ('2100','VAT Payable','liability'),
+      ('4000','Sales Revenue','revenue'),
+      ('5000','Cost of Sales','expense')
+      ON CONFLICT (code) DO NOTHING`);
+
+    await q(`INSERT INTO "__S__"."_meta" (key, value) VALUES ('provisioned_at', now()::text)
+      ON CONFLICT (key) DO NOTHING`);
   }
 
   async drop(schema: string): Promise<void> {
