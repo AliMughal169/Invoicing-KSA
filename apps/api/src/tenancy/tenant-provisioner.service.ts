@@ -57,7 +57,24 @@ export class TenantProvisionerService {
       vat_total numeric(14,2) NOT NULL DEFAULT 0,
       total numeric(14,2) NOT NULL DEFAULT 0,
       currency text NOT NULL DEFAULT 'SAR',
+      zatca_uuid text,
+      zatca_hash text,
+      zatca_prev_hash text,
+      zatca_qr text,
+      zatca_xml text,
+      zatca_signed_at timestamptz,
       created_at timestamptz DEFAULT now())`);
+    // Backfill ZATCA columns for tenants provisioned before this column set.
+    for (const col of [
+      "zatca_uuid text",
+      "zatca_hash text",
+      "zatca_prev_hash text",
+      "zatca_qr text",
+      "zatca_xml text",
+      "zatca_signed_at timestamptz",
+    ]) {
+      await q(`ALTER TABLE "__S__"."invoices" ADD COLUMN IF NOT EXISTS ${col}`);
+    }
     await q(`CREATE TABLE IF NOT EXISTS "__S__"."invoice_lines" (
       id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
       invoice_id text NOT NULL REFERENCES "__S__"."invoices"(id) ON DELETE CASCADE,

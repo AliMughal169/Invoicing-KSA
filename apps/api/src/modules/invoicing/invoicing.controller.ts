@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Header, Param, Post, Res, UseGuards } from "@nestjs/common";
+import { Response } from "express";
 import { JwtAuthGuard } from "../../iam/auth/jwt-auth.guard";
 import { InvoicingService } from "./invoicing.service";
 
@@ -21,6 +22,13 @@ export class InvoicingController {
 
   @Get("invoices") list() { return this.inv.listInvoices(); }
   @Get("invoices/:id") get(@Param("id") id: string) { return this.inv.getInvoice(id); }
+
+  @Get("invoices/:id/xml")
+  @Header("Content-Type", "application/xml")
+  async xml(@Param("id") id: string, @Res() res: Response) {
+    const inv = await this.inv.getInvoice(id);
+    res.send(inv.zatca_xml ?? "<error>not issued</error>");
+  }
 
   @Post("invoices")
   create(@Body() b: {

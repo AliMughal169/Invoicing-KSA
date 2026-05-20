@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Send, CheckCircle2 } from "lucide-react";
+import { Plus, Trash2, Send, CheckCircle2, FileText } from "lucide-react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { formatSAR, formatDate } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -134,6 +135,11 @@ export default function InvoicesPage() {
                   <TableCell className="text-right font-medium">{formatSAR(inv.total)}</TableCell>
                   <TableCell className="text-right">
                     <div className="inline-flex gap-2">
+                      <Button asChild size="sm" variant="ghost">
+                        <Link href={`/invoicing/invoices/${inv.id}`}>
+                          <FileText className="h-3.5 w-3.5" /> PDF
+                        </Link>
+                      </Button>
                       {inv.status === "draft" && (
                         <Button size="sm" variant="outline" onClick={async () => { await api.issueInvoice(inv.id); reload(); }}>
                           <Send className="h-3.5 w-3.5" /> Issue

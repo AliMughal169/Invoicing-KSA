@@ -1,6 +1,9 @@
 import { BadRequestException, Injectable, NotFoundException } from "@nestjs/common";
 import { TenantDb } from "../../core/database/tenant-db.service";
 import { AccountingService } from "../accounting/accounting.service";
+import { ZatcaService } from "./zatca.service";
+import { TenantContextService } from "../../tenancy/tenant-context.service";
+import { PrismaService } from "../../core/database/prisma.service";
 
 interface InvoiceLineInput {
   description: string;
@@ -14,6 +17,9 @@ export class InvoicingService {
   constructor(
     private readonly db: TenantDb,
     private readonly accounting: AccountingService,
+    private readonly zatca: ZatcaService,
+    private readonly ctx: TenantContextService,
+    private readonly prisma: PrismaService,
   ) {}
 
   // Customers
@@ -105,9 +111,12 @@ export class InvoicingService {
     if (inv.status === "issued" || inv.status === "paid") {
       throw new BadRequestException(`Invoice already ${inv.status}`);
     }
-    await this.db.exec(`UPDATE "__S__"."invoices" SET status='issued' WHERE id=$1`, [id]);
+    // ZATCA: build UBL, hash-chain, sign, generate QR.
+    const tenantId = this.ctx.getTenantId()!;
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    await this.zatca.signAndChain(id, tenant?.name ?? "Seller", "300000000000003");
 
-    // Auto-post JE: Dr AR / Cr Sales + VAT Payable
+    await this.db.exec(`UPDATE "__S__"."invoices" SET status='issued' WHERE id=$1`, [id]);
     await this.accounting.postInvoiceIssued(id, Number(inv.subtotal), Number(inv.vat_total));
     return this.getInvoice(id);
   }
