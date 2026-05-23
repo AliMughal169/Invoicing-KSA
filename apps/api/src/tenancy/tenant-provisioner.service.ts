@@ -35,11 +35,47 @@ export class TenantProvisionerService {
       amount_sar numeric(14,2) NOT NULL DEFAULT 0,
       expected_close date, created_at timestamptz DEFAULT now())`);
 
+    // Tasks & Due Date Tracking
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."tasks" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      title text NOT NULL,
+      description text,
+      due_date date NOT NULL,
+      completed_at timestamptz,
+      status text NOT NULL DEFAULT 'open',
+      priority text NOT NULL DEFAULT 'medium',
+      related_type text,
+      related_id text,
+      created_at timestamptz DEFAULT now(),
+      updated_at timestamptz DEFAULT now())`);
+
     // Invoicing
     await q(`CREATE TABLE IF NOT EXISTS "__S__"."customers" (
       id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      name text NOT NULL, email text, vat_number text,
+      name text NOT NULL,
+      email text,
+      vat_number text,
+      contact_person_name text,
+      company_phone text,
+      contact_person_phone text,
+      contact_person_phone_same_as_company boolean NOT NULL DEFAULT true,
+      address text,
+      state text,
+      city text,
+      country text,
       created_at timestamptz DEFAULT now())`);
+    for (const col of [
+      "contact_person_name text",
+      "company_phone text",
+      "contact_person_phone text",
+      "contact_person_phone_same_as_company boolean NOT NULL DEFAULT true",
+      "address text",
+      "state text",
+      "city text",
+      "country text",
+    ]) {
+      await q(`ALTER TABLE "__S__"."customers" ADD COLUMN IF NOT EXISTS ${col}`);
+    }
     await q(`CREATE TABLE IF NOT EXISTS "__S__"."products" (
       id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
       sku text, name text NOT NULL,

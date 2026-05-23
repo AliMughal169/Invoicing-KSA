@@ -76,7 +76,7 @@ class AiService {
         ORDER BY i.created_at DESC LIMIT $1`, [limit]);
     }
     if (name === "list_customers") {
-      return this.db.query(`SELECT name, email, vat_number FROM "__S__"."customers" ORDER BY created_at DESC LIMIT 50`);
+      return this.db.query(`SELECT name, email, vat_number, company_phone, city, country FROM "__S__"."customers" ORDER BY created_at DESC LIMIT 50`);
     }
     if (name === "list_opportunities") {
       return this.db.query(`SELECT name, stage, amount_sar FROM "__S__"."opportunities" ORDER BY created_at DESC LIMIT 50`);

@@ -9,6 +9,7 @@ import { InvoicingModule } from "./modules/invoicing/invoicing.module";
 import { AccountingModule } from "./modules/accounting/accounting.module";
 import { StatsModule } from "./modules/stats/stats.module";
 import { AiModule } from "./modules/ai/ai.module";
+import { TasksModule } from "./modules/tasks/tasks.module";
 import { HealthController } from "./health.controller";
 import { TenantContextMiddleware } from "./tenancy/tenant-context.middleware";
 
@@ -28,6 +29,7 @@ import { TenantContextMiddleware } from "./tenancy/tenant-context.middleware";
     InvoicingModule,
     StatsModule,
     AiModule,
+    TasksModule,
   ],
   controllers: [HealthController],
 })

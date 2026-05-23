@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowUpRight, FileText, TrendingUp, Wallet, Users } from "lucide-react";
@@ -9,11 +10,18 @@ import { PageHeader, PageShell } from "@/components/page-shell";
 import { StatusBadge } from "@/components/status-badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { DueDateWidget } from "@/components/due-date-widget";
 
 type Stats = {
-  contacts_count: number; opportunities_count: number; pipeline_value: string;
-  invoices_count: number; revenue_total: string; outstanding: string; vat_due: string;
-  recentInvoices: any[]; pipelineByStage: any[];
+  contacts_count: number;
+  opportunities_count: number;
+  pipeline_value: string;
+  invoices_count: number;
+  revenue_total: string;
+  outstanding: string;
+  vat_due: string;
+  recentInvoices: any[];
+  pipelineByStage: any[];
 };
 
 const KPI = [
@@ -25,12 +33,22 @@ const KPI = [
 
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [taskSummary, setTaskSummary] = useState<any>(null);
+  const [invoiceDueDates, setInvoiceDueDates] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => { api.statsOverview().then(setStats).catch(e => setError(e.message)); }, []);
+  useEffect(() => {
+    Promise.all([api.statsOverview(), api.getTaskDashboardSummary(), api.getInvoiceDueDates()])
+      .then(([overview, taskData, dueDates]) => {
+        setStats(overview);
+        setTaskSummary(taskData);
+        setInvoiceDueDates(dueDates);
+      })
+      .catch((e) => setError(e.message));
+  }, []);
 
   if (error) return <PageShell><p className="text-destructive">{error}</p></PageShell>;
-  if (!stats) return <PageShell><p className="text-muted-foreground">Loading...</p></PageShell>;
+  if (!stats || !taskSummary || !invoiceDueDates) return <PageShell><p className="text-muted-foreground">Loading...</p></PageShell>;
 
   return (
     <PageShell>
@@ -66,8 +84,8 @@ export default function DashboardPage() {
         })}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(320px,0.8fr)]">
+        <Card>
           <CardHeader>
             <CardTitle>Recent invoices</CardTitle>
           </CardHeader>
@@ -100,27 +118,31 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>VAT due</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Output VAT (YTD)</p>
-              <p className="text-3xl font-semibold mt-1">{formatSAR(stats.vat_due)}</p>
-            </div>
-            <div className="pt-4 border-t space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Invoices issued</span>
-                <span>{stats.invoices_count}</span>
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>VAT due</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <p className="text-sm text-muted-foreground">Output VAT (YTD)</p>
+                <p className="text-3xl font-semibold mt-1">{formatSAR(stats.vat_due)}</p>
               </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-muted-foreground">Open opportunities</span>
-                <span>{stats.opportunities_count}</span>
+              <div className="pt-4 border-t space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Invoices issued</span>
+                  <span>{stats.invoices_count}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-muted-foreground">Open opportunities</span>
+                  <span>{stats.opportunities_count}</span>
+                </div>
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          <DueDateWidget taskSummary={taskSummary} invoiceDueDates={invoiceDueDates} />
+        </div>
       </div>
     </PageShell>
   );

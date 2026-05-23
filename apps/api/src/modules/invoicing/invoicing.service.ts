@@ -26,10 +26,41 @@ export class InvoicingService {
   listCustomers() {
     return this.db.query(`SELECT * FROM "__S__"."customers" ORDER BY created_at DESC`);
   }
-  createCustomer(name: string, email?: string, vatNumber?: string) {
+  createCustomer(input: {
+    name: string;
+    email?: string;
+    vatNumber?: string;
+    contactPersonName?: string;
+    companyPhone?: string;
+    contactPersonPhone?: string;
+    contactPersonPhoneSameAsCompany?: boolean;
+    address?: string;
+    state?: string;
+    city?: string;
+    country?: string;
+  }) {
+    const contactPersonPhone = input.contactPersonPhoneSameAsCompany
+      ? input.companyPhone ?? null
+      : input.contactPersonPhone ?? null;
     return this.db.insertReturning(
-      `INSERT INTO "__S__"."customers"(name,email,vat_number) VALUES ($1,$2,$3) RETURNING *`,
-      [name, email ?? null, vatNumber ?? null],
+      `INSERT INTO "__S__"."customers"(
+        name, email, vat_number,
+        contact_person_name, company_phone, contact_person_phone,
+        contact_person_phone_same_as_company, address, state, city, country
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [
+        input.name,
+        input.email ?? null,
+        input.vatNumber ?? null,
+        input.contactPersonName ?? null,
+        input.companyPhone ?? null,
+        contactPersonPhone,
+        input.contactPersonPhoneSameAsCompany ?? true,
+        input.address ?? null,
+        input.state ?? null,
+        input.city ?? null,
+        input.country ?? null,
+      ],
     );
   }
 
