@@ -72,6 +72,7 @@ export const api = {
     customerId: string;
     lines: { description: string; qty: number; unitPrice: number; vatRate?: number }[];
     dueDate?: string;
+    isTaxInvoice?: boolean;
   }) => request<any>("/invoicing/invoices", { method: "POST", body: JSON.stringify(b) }),
   issueInvoice: (id: string) =>
     request<any>(`/invoicing/invoices/${id}/issue`, { method: "POST" }),

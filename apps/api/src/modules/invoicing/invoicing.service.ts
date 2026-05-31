@@ -100,17 +100,20 @@ export class InvoicingService {
     customerId: string;
     issueDate?: string;
     dueDate?: string;
+    isTaxInvoice?: boolean;
     lines: InvoiceLineInput[];
   }) {
     if (!input.lines?.length) throw new BadRequestException("At least one line is required");
 
+    const isTaxInvoice = input.isTaxInvoice !== false; // Default to true
     let subtotal = 0, vatTotal = 0;
     const computed = input.lines.map((l) => {
       const lineSubtotal = +(l.qty * l.unitPrice).toFixed(2);
-      const lineVat = +(lineSubtotal * (l.vatRate ?? 15) / 100).toFixed(2);
+      const vatRate = isTaxInvoice ? (l.vatRate ?? 15) : 0;
+      const lineVat = +(lineSubtotal * (vatRate / 100)).toFixed(2);
       subtotal += lineSubtotal;
       vatTotal += lineVat;
-      return { ...l, lineSubtotal, lineVat };
+      return { ...l, lineSubtotal, lineVat, vatRate };
     });
     const total = +(subtotal + vatTotal).toFixed(2);
 
@@ -118,11 +121,11 @@ export class InvoicingService {
 
     const invoice = await this.db.insertReturning<any>(
       `INSERT INTO "__S__"."invoices"
-       (number, customer_id, issue_date, due_date, status, subtotal, vat_total, total)
-       VALUES ($1,$2, COALESCE($3::date, current_date), $4::date, 'draft', $5::numeric, $6::numeric, $7::numeric)
+       (number, customer_id, issue_date, due_date, status, subtotal, vat_total, total, is_tax_invoice)
+       VALUES ($1,$2, COALESCE($3::date, current_date), $4::date, 'draft', $5::numeric, $6::numeric, $7::numeric, $8)
        RETURNING *`,
       [number, input.customerId, input.issueDate ?? null, input.dueDate ?? null,
-       subtotal, vatTotal, total],
+       subtotal, vatTotal, total, isTaxInvoice],
     );
 
     for (const l of computed) {
@@ -130,7 +133,7 @@ export class InvoicingService {
         `INSERT INTO "__S__"."invoice_lines"
          (invoice_id, description, qty, unit_price, vat_rate, line_total)
          VALUES ($1,$2,$3::numeric,$4::numeric,$5::numeric,$6::numeric)`,
-        [invoice.id, l.description, l.qty, l.unitPrice, l.vatRate ?? 15,
+        [invoice.id, l.description, l.qty, l.unitPrice, l.vatRate,
          l.lineSubtotal + l.lineVat],
       );
     }

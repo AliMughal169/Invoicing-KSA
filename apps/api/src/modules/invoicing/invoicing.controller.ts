@@ -44,7 +44,7 @@ export class InvoicingController {
 
   @Post("invoices")
   create(@Body() b: {
-    customerId: string; issueDate?: string; dueDate?: string;
+    customerId: string; issueDate?: string; dueDate?: string; isTaxInvoice?: boolean;
     lines: { description: string; qty: number; unitPrice: number; vatRate?: number }[];
   }) { return this.inv.createInvoice(b); }
 

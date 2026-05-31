@@ -49,8 +49,8 @@ export default function InvoicePdfPage() {
               <p className="text-xs text-zinc-500 mt-1">VAT: 300000000000003</p>
             </div>
             <div className="text-right">
-              <p className="text-xs uppercase tracking-wide text-zinc-500">Tax Invoice</p>
-              <p className="text-xs text-zinc-500">فاتورة ضريبية</p>
+              <p className="text-xs uppercase tracking-wide text-zinc-500">{inv.is_tax_invoice ? "Tax Invoice" : "Simplified Invoice"}</p>
+              <p className="text-xs text-zinc-500">{inv.is_tax_invoice ? "فاتورة ضريبية" : "فاتورة مبسطة"}</p>
               <p className="text-lg font-semibold mt-1">{inv.number}</p>
               <div className="mt-2 inline-block"><StatusBadge status={inv.status} /></div>
             </div>
@@ -78,7 +78,7 @@ export default function InvoicePdfPage() {
                 <th className="text-left p-3 font-medium">Description</th>
                 <th className="text-right p-3 font-medium w-16">Qty</th>
                 <th className="text-right p-3 font-medium w-28">Unit price</th>
-                <th className="text-right p-3 font-medium w-16">VAT %</th>
+                {inv.is_tax_invoice && <th className="text-right p-3 font-medium w-16">VAT %</th>}
                 <th className="text-right p-3 font-medium w-32">Line total</th>
               </tr>
             </thead>
@@ -88,7 +88,7 @@ export default function InvoicePdfPage() {
                   <td className="p-3">{l.description}</td>
                   <td className="p-3 text-right">{l.qty}</td>
                   <td className="p-3 text-right">{formatSAR(l.unit_price)}</td>
-                  <td className="p-3 text-right">{l.vat_rate}%</td>
+                  {inv.is_tax_invoice && <td className="p-3 text-right">{l.vat_rate}%</td>}
                   <td className="p-3 text-right">{formatSAR(l.line_total)}</td>
                 </tr>
               ))}
@@ -97,8 +97,8 @@ export default function InvoicePdfPage() {
 
           <div className="grid grid-cols-2 gap-6 pt-6">
             <div className="flex flex-col items-start gap-2">
-              {qr && <img src={qr} alt="ZATCA QR" className="border p-1 bg-white" />}
-              {inv.zatca_uuid && (
+              {inv.is_tax_invoice && qr && <img src={qr} alt="ZATCA QR" className="border p-1 bg-white" />}
+              {inv.is_tax_invoice && inv.zatca_uuid && (
                 <div className="text-[10px] text-zinc-500 leading-relaxed max-w-xs break-all">
                   <p>UUID: {inv.zatca_uuid}</p>
                   <p>Hash: {String(inv.zatca_hash).slice(0, 32)}…</p>
@@ -111,10 +111,10 @@ export default function InvoicePdfPage() {
                 <span className="text-zinc-500">Subtotal</span>
                 <span>{formatSAR(inv.subtotal)}</span>
               </div>
-              <div className="flex justify-between">
+              {inv.is_tax_invoice && <div className="flex justify-between">
                 <span className="text-zinc-500">VAT 15%</span>
                 <span>{formatSAR(inv.vat_total)}</span>
-              </div>
+              </div>}
               <div className="flex justify-between text-lg font-semibold pt-3 border-t">
                 <span>Total</span>
                 <span>{formatSAR(inv.total)}</span>

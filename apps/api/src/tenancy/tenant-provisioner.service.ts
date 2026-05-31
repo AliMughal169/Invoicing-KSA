@@ -93,6 +93,7 @@ export class TenantProvisionerService {
       vat_total numeric(14,2) NOT NULL DEFAULT 0,
       total numeric(14,2) NOT NULL DEFAULT 0,
       currency text NOT NULL DEFAULT 'SAR',
+      is_tax_invoice boolean NOT NULL DEFAULT true,
       zatca_uuid text,
       zatca_hash text,
       zatca_prev_hash text,
@@ -102,6 +103,7 @@ export class TenantProvisionerService {
       created_at timestamptz DEFAULT now())`);
     // Backfill ZATCA columns for tenants provisioned before this column set.
     for (const col of [
+      "is_tax_invoice boolean NOT NULL DEFAULT true",
       "zatca_uuid text",
       "zatca_hash text",
       "zatca_prev_hash text",
