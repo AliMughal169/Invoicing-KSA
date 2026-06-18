@@ -49,7 +49,19 @@ export const api = {
 
   // Invoicing
   listCustomers: () => request<any[]>("/invoicing/customers"),
-  createCustomer: (b: { name: string; email?: string; vatNumber?: string }) =>
+  createCustomer: (b: {
+    name: string;
+    email?: string;
+    vatNumber?: string;
+    contactPersonName?: string;
+    companyPhone?: string;
+    contactPersonPhone?: string;
+    contactPersonPhoneSameAsCompany?: boolean;
+    address?: string;
+    state?: string;
+    city?: string;
+    country?: string;
+  }) =>
     request<any>("/invoicing/customers", { method: "POST", body: JSON.stringify(b) }),
   listProducts: () => request<any[]>("/invoicing/products"),
   createProduct: (b: { name: string; priceSar: number; sku?: string; vatRate?: number }) =>
@@ -60,11 +72,34 @@ export const api = {
     customerId: string;
     lines: { description: string; qty: number; unitPrice: number; vatRate?: number }[];
     dueDate?: string;
+    isTaxInvoice?: boolean;
   }) => request<any>("/invoicing/invoices", { method: "POST", body: JSON.stringify(b) }),
   issueInvoice: (id: string) =>
     request<any>(`/invoicing/invoices/${id}/issue`, { method: "POST" }),
   payInvoice: (id: string) =>
     request<any>(`/invoicing/invoices/${id}/pay`, { method: "POST" }),
+
+  // Tasks & Due Date Tracking
+  listTasks: () => request<any[]>("/tasks"),
+  getTask: (id: string) => request<any>(`/tasks/${id}`),
+  createTask: (b: {
+    title: string;
+    description?: string;
+    dueDate: string;
+    priority?: string;
+    relatedType?: string;
+    relatedId?: string;
+  }) => request<any>("/tasks", { method: "POST", body: JSON.stringify(b) }),
+  updateTask: (id: string, b: { title?: string; description?: string; dueDate?: string; priority?: string }) =>
+    request<any>(`/tasks/${id}`, { method: "PATCH", body: JSON.stringify(b) }),
+  completeTask: (id: string) =>
+    request<any>(`/tasks/${id}/complete`, { method: "PATCH" }),
+  deleteTask: (id: string) =>
+    request<any>(`/tasks/${id}`, { method: "DELETE" }),
+  getOverdueeTasks: () => request<any[]>("/tasks/overdue"),
+  getUpcomingTasks: () => request<any[]>("/tasks/upcoming"),
+  getTaskDashboardSummary: () => request<any>("/tasks/dashboard-summary"),
+  getInvoiceDueDates: () => request<any>("/tasks/invoice-due-dates"),
 
   // Accounting
   listJournal: () => request<any[]>("/accounting/journal"),

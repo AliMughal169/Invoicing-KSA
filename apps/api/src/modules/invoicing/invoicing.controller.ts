@@ -10,8 +10,20 @@ export class InvoicingController {
 
   @Get("customers") listCustomers() { return this.inv.listCustomers(); }
   @Post("customers")
-  createCustomer(@Body() b: { name: string; email?: string; vatNumber?: string }) {
-    return this.inv.createCustomer(b.name, b.email, b.vatNumber);
+  createCustomer(@Body() b: {
+    name: string;
+    email?: string;
+    vatNumber?: string;
+    contactPersonName?: string;
+    companyPhone?: string;
+    contactPersonPhone?: string;
+    contactPersonPhoneSameAsCompany?: boolean;
+    address?: string;
+    state?: string;
+    city?: string;
+    country?: string;
+  }) {
+    return this.inv.createCustomer(b);
   }
 
   @Get("products") listProducts() { return this.inv.listProducts(); }
@@ -32,7 +44,7 @@ export class InvoicingController {
 
   @Post("invoices")
   create(@Body() b: {
-    customerId: string; issueDate?: string; dueDate?: string;
+    customerId: string; issueDate?: string; dueDate?: string; isTaxInvoice?: boolean;
     lines: { description: string; qty: number; unitPrice: number; vatRate?: number }[];
   }) { return this.inv.createInvoice(b); }
 
