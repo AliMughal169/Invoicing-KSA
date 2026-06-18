@@ -1,15 +1,24 @@
-import { Injectable, OnModuleInit } from "@nestjs/common";
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { TenantContextService } from "../../tenancy/tenant-context.service";
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit {
+  private readonly logger = new Logger(PrismaService.name);
+
   constructor(private readonly tenantContext?: TenantContextService) {
     super({ log: ["warn", "error"] });
   }
 
   async onModuleInit() {
-    await this.$connect();
+    try {
+      await this.$connect();
+    } catch (error) {
+      this.logger.warn(
+        "Prisma could not connect during startup. The API will keep running, but database-backed routes will fail until Postgres is available.",
+      );
+      this.logger.error(error);
+    }
   }
 
   /**
