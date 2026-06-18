@@ -103,8 +103,44 @@ export const api = {
 
   // Accounting
   listJournal: () => request<any[]>("/accounting/journal"),
+  getJournalEntry: (id: string) => request<any>(`/accounting/journal/${id}`),
+  createManualJE: (b: {
+    date?: string; memo: string;
+    lines: { accountId: string; debit?: number; credit?: number }[];
+  }) => request<any>("/accounting/journal", { method: "POST", body: JSON.stringify(b) }),
+  listAccounts: () => request<any[]>("/accounting/accounts"),
+  createAccount: (b: { code: string; name: string; type: string }) =>
+    request<any>("/accounting/accounts", { method: "POST", body: JSON.stringify(b) }),
   vatReport: () => request<any>("/accounting/reports/vat"),
   pnl: () => request<any>("/accounting/reports/pnl"),
+  trialBalance: (q?: { from?: string; to?: string }) => {
+    const p = new URLSearchParams();
+    if (q?.from) p.set("from", q.from); if (q?.to) p.set("to", q.to);
+    const qs = p.toString(); return request<any>(`/accounting/reports/trial-balance${qs ? "?" + qs : ""}`);
+  },
+  generalLedger: (accountId: string, q?: { from?: string; to?: string }) => {
+    const p = new URLSearchParams();
+    if (q?.from) p.set("from", q.from); if (q?.to) p.set("to", q.to);
+    const qs = p.toString(); return request<any>(`/accounting/ledger/${accountId}${qs ? "?" + qs : ""}`);
+  },
+
+  // Purchasing (vendors + bills)
+  listVendors: () => request<any[]>("/purchasing/vendors"),
+  createVendor: (b: {
+    name: string; vatNumber?: string; email?: string; phone?: string;
+    address?: string; city?: string; country?: string;
+  }) => request<any>("/purchasing/vendors", { method: "POST", body: JSON.stringify(b) }),
+  listBills: () => request<any[]>("/purchasing/bills"),
+  getBill: (id: string) => request<any>(`/purchasing/bills/${id}`),
+  createBill: (b: {
+    vendorId: string; billDate?: string; dueDate?: string;
+    reference?: string; notes?: string;
+    lines: { description: string; qty: number; unitPrice: number; vatRate?: number; expenseAccountId?: string }[];
+  }) => request<any>("/purchasing/bills", { method: "POST", body: JSON.stringify(b) }),
+  postBill: (id: string) =>
+    request<any>(`/purchasing/bills/${id}/post`, { method: "POST" }),
+  payBill: (id: string) =>
+    request<any>(`/purchasing/bills/${id}/pay`, { method: "POST" }),
 };
 
 export const session = {

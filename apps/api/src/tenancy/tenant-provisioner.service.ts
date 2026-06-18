@@ -122,6 +122,43 @@ export class TenantProvisionerService {
       vat_rate numeric(5,2) NOT NULL DEFAULT 15.00,
       line_total numeric(14,2) NOT NULL DEFAULT 0)`);
 
+    // Vendors + Bills (AP side)
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."vendors" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      name text NOT NULL,
+      vat_number text,
+      email text,
+      phone text,
+      address text,
+      city text,
+      country text,
+      created_at timestamptz DEFAULT now())`);
+
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."bills" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      number text NOT NULL,
+      vendor_id text REFERENCES "__S__"."vendors"(id) ON DELETE SET NULL,
+      bill_date date NOT NULL DEFAULT current_date,
+      due_date date,
+      status text NOT NULL DEFAULT 'draft',
+      subtotal numeric(14,2) NOT NULL DEFAULT 0,
+      vat_total numeric(14,2) NOT NULL DEFAULT 0,
+      total numeric(14,2) NOT NULL DEFAULT 0,
+      currency text NOT NULL DEFAULT 'SAR',
+      reference text,
+      notes text,
+      created_at timestamptz DEFAULT now())`);
+
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."bill_lines" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      bill_id text NOT NULL REFERENCES "__S__"."bills"(id) ON DELETE CASCADE,
+      description text NOT NULL,
+      qty numeric(14,2) NOT NULL DEFAULT 1,
+      unit_price numeric(14,2) NOT NULL DEFAULT 0,
+      vat_rate numeric(5,2) NOT NULL DEFAULT 15.00,
+      line_total numeric(14,2) NOT NULL DEFAULT 0,
+      expense_account_id text REFERENCES "__S__"."accounts"(id))`);
+
     // Accounting
     await q(`CREATE TABLE IF NOT EXISTS "__S__"."accounts" (
       id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -138,13 +175,23 @@ export class TenantProvisionerService {
       debit numeric(14,2) NOT NULL DEFAULT 0,
       credit numeric(14,2) NOT NULL DEFAULT 0)`);
 
-    // Seed KSA Chart of Accounts (minimal)
+    // Seed KSA Chart of Accounts (expanded)
     await q(`INSERT INTO "__S__"."accounts" (code, name, type) VALUES
       ('1000','Cash','asset'),
       ('1100','Accounts Receivable','asset'),
+      ('1400','Input VAT','asset'),
       ('2100','VAT Payable','liability'),
+      ('2200','Accounts Payable','liability'),
       ('4000','Sales Revenue','revenue'),
-      ('5000','Cost of Sales','expense')
+      ('5000','Cost of Sales','expense'),
+      ('5100','Rent Expense','expense'),
+      ('5200','Salaries Expense','expense'),
+      ('5300','Utilities Expense','expense'),
+      ('5400','Travel & Entertainment','expense'),
+      ('5500','Office Supplies','expense'),
+      ('5600','Professional Fees','expense'),
+      ('5700','Bank Charges','expense'),
+      ('5900','Other Operating Expense','expense')
       ON CONFLICT (code) DO NOTHING`);
 
     await q(`INSERT INTO "__S__"."_meta" (key, value) VALUES ('provisioned_at', now()::text)

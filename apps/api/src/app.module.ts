@@ -7,6 +7,7 @@ import { AuthModule } from "./iam/auth/auth.module";
 import { CrmModule } from "./modules/crm/crm.module";
 import { InvoicingModule } from "./modules/invoicing/invoicing.module";
 import { AccountingModule } from "./modules/accounting/accounting.module";
+import { PurchasingModule } from "./modules/purchasing/purchasing.module";
 import { StatsModule } from "./modules/stats/stats.module";
 import { AiModule } from "./modules/ai/ai.module";
 import { TasksModule } from "./modules/tasks/tasks.module";
@@ -27,6 +28,7 @@ import { TenantContextMiddleware } from "./tenancy/tenant-context.middleware";
     CrmModule,
     AccountingModule,
     InvoicingModule,
+    PurchasingModule,
     StatsModule,
     AiModule,
     TasksModule,
