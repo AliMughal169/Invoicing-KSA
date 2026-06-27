@@ -9,15 +9,32 @@ export class InvoicingController {
   constructor(private readonly inv: InvoicingService) {}
 
   @Get("customers") listCustomers() { return this.inv.listCustomers(); }
+  @Get("customers/:id") getCustomer(@Param("id") id: string) { return this.inv.getCustomer(id); }
   @Post("customers")
   createCustomer(@Body() b: {
     name: string;
+    companyName?: string;
+    customerType?: string;
+    salutation?: string;
+    firstName?: string;
+    lastName?: string;
+    displayName?: string;
+    currency?: string;
     email?: string;
     vatNumber?: string;
     contactPersonName?: string;
     companyPhone?: string;
     contactPersonPhone?: string;
     contactPersonPhoneSameAsCompany?: boolean;
+    workPhoneCountryCode?: string;
+    personalPhoneCountryCode?: string;
+    workPhone?: string;
+    personalPhone?: string;
+    language?: string;
+    documents?: { name: string; size?: number; type?: string; lastModified?: number }[];
+    remarks?: string;
+    shippingAddress?: { line1?: string; line2?: string; city?: string; state?: string; country?: string; postalCode?: string };
+    billingAddress?: { line1?: string; line2?: string; city?: string; state?: string; country?: string; postalCode?: string };
     address?: string;
     state?: string;
     city?: string;
@@ -25,6 +42,44 @@ export class InvoicingController {
   }) {
     return this.inv.createCustomer(b);
   }
+  @Post("customers/:id")
+  updateCustomer(@Param("id") id: string, @Body() b: {
+    name?: string;
+    companyName?: string;
+    customerType?: string;
+    salutation?: string;
+    firstName?: string;
+    lastName?: string;
+    displayName?: string;
+    currency?: string;
+    email?: string;
+    vatNumber?: string;
+    contactPersonName?: string;
+    companyPhone?: string;
+    contactPersonPhone?: string;
+    contactPersonPhoneSameAsCompany?: boolean;
+    workPhoneCountryCode?: string;
+    personalPhoneCountryCode?: string;
+    workPhone?: string;
+    personalPhone?: string;
+    language?: string;
+    documents?: { name: string; size?: number; type?: string; lastModified?: number }[];
+    remarks?: string;
+    shippingAddress?: { line1?: string; line2?: string; city?: string; state?: string; country?: string; postalCode?: string };
+    billingAddress?: { line1?: string; line2?: string; city?: string; state?: string; country?: string; postalCode?: string };
+    address?: string;
+    state?: string;
+    city?: string;
+    country?: string;
+  }) {
+    return this.inv.updateCustomer(id, b);
+  }
+  @Post("customers/:id/delete") deleteCustomer(@Param("id") id: string) { return this.inv.deleteCustomer(id); }
+  @Get("customers/:id/comments") customerComments(@Param("id") id: string) { return this.inv.customerComments(id); }
+  @Post("customers/:id/comments") addCustomerComment(@Param("id") id: string, @Body() b: { body: string }) {
+    return this.inv.addCustomerComment(id, b.body);
+  }
+  @Get("customers/:id/statement") customerStatement(@Param("id") id: string) { return this.inv.customerStatement(id); }
 
   @Get("products") listProducts() { return this.inv.listProducts(); }
   @Post("products")

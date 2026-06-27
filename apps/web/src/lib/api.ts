@@ -49,20 +49,71 @@ export const api = {
 
   // Invoicing
   listCustomers: () => request<any[]>("/invoicing/customers"),
+  getCustomer: (id: string) => request<any>(`/invoicing/customers/${id}`),
   createCustomer: (b: {
     name: string;
+    companyName?: string;
+    customerType?: string;
+    salutation?: string;
+    firstName?: string;
+    lastName?: string;
+    displayName?: string;
+    currency?: string;
     email?: string;
     vatNumber?: string;
     contactPersonName?: string;
     companyPhone?: string;
     contactPersonPhone?: string;
     contactPersonPhoneSameAsCompany?: boolean;
+    workPhoneCountryCode?: string;
+    personalPhoneCountryCode?: string;
+    workPhone?: string;
+    personalPhone?: string;
+    language?: string;
+    documents?: { name: string; size?: number; type?: string; lastModified?: number }[];
+    remarks?: string;
+    shippingAddress?: { line1?: string; line2?: string; city?: string; state?: string; country?: string; postalCode?: string };
+    billingAddress?: { line1?: string; line2?: string; city?: string; state?: string; country?: string; postalCode?: string };
     address?: string;
     state?: string;
     city?: string;
     country?: string;
   }) =>
     request<any>("/invoicing/customers", { method: "POST", body: JSON.stringify(b) }),
+  updateCustomer: (id: string, b: {
+    name?: string;
+    companyName?: string;
+    customerType?: string;
+    salutation?: string;
+    firstName?: string;
+    lastName?: string;
+    displayName?: string;
+    currency?: string;
+    email?: string;
+    vatNumber?: string;
+    contactPersonName?: string;
+    companyPhone?: string;
+    contactPersonPhone?: string;
+    contactPersonPhoneSameAsCompany?: boolean;
+    workPhoneCountryCode?: string;
+    personalPhoneCountryCode?: string;
+    workPhone?: string;
+    personalPhone?: string;
+    language?: string;
+    documents?: { name: string; size?: number; type?: string; lastModified?: number }[];
+    remarks?: string;
+    shippingAddress?: { line1?: string; line2?: string; city?: string; state?: string; country?: string; postalCode?: string };
+    billingAddress?: { line1?: string; line2?: string; city?: string; state?: string; country?: string; postalCode?: string };
+    address?: string;
+    state?: string;
+    city?: string;
+    country?: string;
+  }) => request<any>(`/invoicing/customers/${id}`, { method: "POST", body: JSON.stringify(b) }),
+  deleteCustomer: (id: string) => request<any>(`/invoicing/customers/${id}/delete`, { method: "POST" }),
+  listCustomerComments: (id: string) => request<any[]>(`/invoicing/customers/${id}/comments`),
+  addCustomerComment: (id: string, body: string) =>
+    request<any>(`/invoicing/customers/${id}/comments`, { method: "POST", body: JSON.stringify({ body }) }),
+  customerStatement: (id: string) => request<any[]>(`/invoicing/customers/${id}/statement`),
   listProducts: () => request<any[]>("/invoicing/products"),
   createProduct: (b: { name: string; priceSar: number; sku?: string; vatRate?: number }) =>
     request<any>("/invoicing/products", { method: "POST", body: JSON.stringify(b) }),

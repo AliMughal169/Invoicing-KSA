@@ -11,6 +11,7 @@ export class TenantProvisionerService {
   }
 
   async provision(schema: string): Promise<void> {
+    await this.prisma.$executeRawUnsafe(`CREATE EXTENSION IF NOT EXISTS "pgcrypto"`);
     await this.prisma.$executeRawUnsafe(`CREATE SCHEMA IF NOT EXISTS "${schema}"`);
     const q = (sql: string) => this.prisma.$executeRawUnsafe(sql.replace(/__S__/g, schema));
 
@@ -53,22 +54,54 @@ export class TenantProvisionerService {
     await q(`CREATE TABLE IF NOT EXISTS "__S__"."customers" (
       id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
       name text NOT NULL,
+      company_name text,
+      customer_type text NOT NULL DEFAULT 'business',
+      salutation text,
+      first_name text,
+      last_name text,
+      display_name text,
+      currency text NOT NULL DEFAULT 'SAR',
       email text,
       vat_number text,
       contact_person_name text,
       company_phone text,
       contact_person_phone text,
       contact_person_phone_same_as_company boolean NOT NULL DEFAULT true,
+      work_phone_country_code text,
+      personal_phone_country_code text,
+      work_phone text,
+      personal_phone text,
+      language text,
+      documents_json text,
+      remarks text,
+      shipping_address_json text,
+      billing_address_json text,
       address text,
       state text,
       city text,
       country text,
       created_at timestamptz DEFAULT now())`);
     for (const col of [
+      "company_name text",
+      "customer_type text NOT NULL DEFAULT 'business'",
+      "salutation text",
+      "first_name text",
+      "last_name text",
+      "display_name text",
+      "currency text NOT NULL DEFAULT 'SAR'",
       "contact_person_name text",
       "company_phone text",
       "contact_person_phone text",
       "contact_person_phone_same_as_company boolean NOT NULL DEFAULT true",
+      "work_phone_country_code text",
+      "personal_phone_country_code text",
+      "work_phone text",
+      "personal_phone text",
+      "language text",
+      "documents_json text",
+      "remarks text",
+      "shipping_address_json text",
+      "billing_address_json text",
       "address text",
       "state text",
       "city text",
@@ -76,6 +109,11 @@ export class TenantProvisionerService {
     ]) {
       await q(`ALTER TABLE "__S__"."customers" ADD COLUMN IF NOT EXISTS ${col}`);
     }
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."customer_comments" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      customer_id text NOT NULL REFERENCES "__S__"."customers"(id) ON DELETE CASCADE,
+      body text NOT NULL,
+      created_at timestamptz DEFAULT now())`);
     await q(`CREATE TABLE IF NOT EXISTS "__S__"."products" (
       id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
       sku text, name text NOT NULL,
@@ -149,16 +187,6 @@ export class TenantProvisionerService {
       notes text,
       created_at timestamptz DEFAULT now())`);
 
-    await q(`CREATE TABLE IF NOT EXISTS "__S__"."bill_lines" (
-      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      bill_id text NOT NULL REFERENCES "__S__"."bills"(id) ON DELETE CASCADE,
-      description text NOT NULL,
-      qty numeric(14,2) NOT NULL DEFAULT 1,
-      unit_price numeric(14,2) NOT NULL DEFAULT 0,
-      vat_rate numeric(5,2) NOT NULL DEFAULT 15.00,
-      line_total numeric(14,2) NOT NULL DEFAULT 0,
-      expense_account_id text REFERENCES "__S__"."accounts"(id))`);
-
     // Accounting
     await q(`CREATE TABLE IF NOT EXISTS "__S__"."accounts" (
       id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -193,6 +221,16 @@ export class TenantProvisionerService {
       ('5700','Bank Charges','expense'),
       ('5900','Other Operating Expense','expense')
       ON CONFLICT (code) DO NOTHING`);
+
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."bill_lines" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      bill_id text NOT NULL REFERENCES "__S__"."bills"(id) ON DELETE CASCADE,
+      description text NOT NULL,
+      qty numeric(14,2) NOT NULL DEFAULT 1,
+      unit_price numeric(14,2) NOT NULL DEFAULT 0,
+      vat_rate numeric(5,2) NOT NULL DEFAULT 15.00,
+      line_total numeric(14,2) NOT NULL DEFAULT 0,
+      expense_account_id text REFERENCES "__S__"."accounts"(id))`);
 
     await q(`INSERT INTO "__S__"."_meta" (key, value) VALUES ('provisioned_at', now()::text)
       ON CONFLICT (key) DO NOTHING`);

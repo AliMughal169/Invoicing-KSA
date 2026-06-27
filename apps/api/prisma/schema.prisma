@@ -8,39 +8,39 @@ datasource db {
 }
 
 model Tenant {
-  id        String   @id @default(cuid())
+  id        String         @id @default(cuid())
   name      String
-  slug      String   @unique
-  schema    String   @unique
-  status    String   @default("active")
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  slug      String         @unique
+  schema    String         @unique
+  status    String         @default("active")
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
   members   TenantMember[]
 
   @@map("tenants")
 }
 
 model User {
-  id            String   @id @default(cuid())
-  email         String   @unique
+  id            String         @id @default(cuid())
+  email         String         @unique
   passwordHash  String
   name          String
-  emailVerified Boolean  @default(false)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  emailVerified Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
   memberships   TenantMember[]
 
   @@map("users")
 }
 
 model TenantMember {
-  id       String   @id @default(cuid())
-  tenantId String
-  userId   String
-  role     String   @default("owner")
+  id        String   @id @default(cuid())
+  tenantId  String
+  userId    String
+  role      String   @default("owner")
   createdAt DateTime @default(now())
-  tenant   Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, userId])
   @@map("tenant_members")

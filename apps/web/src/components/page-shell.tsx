@@ -19,6 +19,6 @@ export function PageHeader({
   );
 }
 
-export function PageShell({ children }: { children: React.ReactNode }) {
-  return <div className="p-6 md:p-10 max-w-[1400px] mx-auto">{children}</div>;
+export function PageShell({ children, className }: { children: React.ReactNode; className?: string }) {
+  return <div className={cn("p-6 md:p-10 max-w-[1400px] mx-auto", className)}>{children}</div>;
 }
