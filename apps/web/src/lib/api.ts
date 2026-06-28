@@ -130,6 +130,27 @@ export const api = {
   payInvoice: (id: string) =>
     request<any>(`/invoicing/invoices/${id}/pay`, { method: "POST" }),
 
+  // Quotations
+  listQuotations: () => request<any[]>("/invoicing/quotations"),
+  getQuotation: (id: string) => request<any>(`/invoicing/quotations/${id}`),
+  createQuotation: (b: {
+    customerId: string;
+    lines: { description: string; qty: number; unitPrice: number; vatRate?: number }[];
+    dueDate?: string;
+    isTaxQuote?: boolean;
+  }) => request<any>("/invoicing/quotations", { method: "POST", body: JSON.stringify(b) }),
+  updateQuotation: (id: string, b: {
+    customerId?: string;
+    lines?: { description: string; qty: number; unitPrice: number; vatRate?: number }[];
+    dueDate?: string;
+    isTaxQuote?: boolean;
+    status?: string;
+  }) => request<any>(`/invoicing/quotations/${id}`, { method: "POST", body: JSON.stringify(b) }),
+  deleteQuotation: (id: string) =>
+    request<any>(`/invoicing/quotations/${id}/delete`, { method: "POST" }),
+  convertQuotationToInvoice: (id: string) =>
+    request<any>(`/invoicing/quotations/${id}/convert`, { method: "POST" }),
+
   // Tasks & Due Date Tracking
   listTasks: () => request<any[]>("/tasks"),
   getTask: (id: string) => request<any>(`/tasks/${id}`),

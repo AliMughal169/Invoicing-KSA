@@ -11,6 +11,7 @@ import { PurchasingModule } from "./modules/purchasing/purchasing.module";
 import { StatsModule } from "./modules/stats/stats.module";
 import { AiModule } from "./modules/ai/ai.module";
 import { TasksModule } from "./modules/tasks/tasks.module";
+import { QuotationsModule } from "./modules/quotations/quotations.module";
 import { HealthController } from "./health.controller";
 import { TenantContextMiddleware } from "./tenancy/tenant-context.middleware";
 
@@ -32,6 +33,7 @@ import { TenantContextMiddleware } from "./tenancy/tenant-context.middleware";
     StatsModule,
     AiModule,
     TasksModule,
+    QuotationsModule,
   ],
   controllers: [HealthController],
 })

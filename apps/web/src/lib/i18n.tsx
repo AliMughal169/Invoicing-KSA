@@ -6,9 +6,9 @@ export type Locale = "en" | "ar";
 type Dict = Record<string, string>;
 const en: Dict = {
   workspace: "Workspace", dashboard: "Dashboard", contacts: "Contacts",
-  pipeline: "Pipeline", invoices: "Invoices", customers: "Customers",
+  pipeline: "Pipeline", invoices: "Invoices", quotations: "Quotations", customers: "Customers",
   products: "Products", accounting: "Accounting", logout: "Logout",
-  newInvoice: "New invoice", recentInvoices: "Recent invoices",
+  newInvoice: "New invoice", recentInvoices: "Recent invoices", newQuotation: "New quotation",
   revenue: "Revenue", outstanding: "Outstanding", pipelineValue: "Pipeline value",
   vatDue: "VAT due", outputVatYtd: "Output VAT (YTD)", invoicesIssued: "Invoices issued",
   openOpportunities: "Open opportunities", aiAssistant: "AI assistant",
@@ -20,9 +20,9 @@ const en: Dict = {
 };
 const ar: Dict = {
   workspace: "مساحة العمل", dashboard: "لوحة التحكم", contacts: "جهات الاتصال",
-  pipeline: "خط الفرص", invoices: "الفواتير", customers: "العملاء",
+  pipeline: "خط الفرص", invoices: "الفواتير", quotations: "عروض الأسعار", customers: "العملاء",
   products: "المنتجات", accounting: "المحاسبة", logout: "تسجيل الخروج",
-  newInvoice: "فاتورة جديدة", recentInvoices: "الفواتير الأخيرة",
+  newInvoice: "فاتورة جديدة", recentInvoices: "الفواتير الأخيرة", newQuotation: "عرض سعر جديد",
   revenue: "الإيرادات", outstanding: "المستحق", pipelineValue: "قيمة الفرص",
   vatDue: "ضريبة القيمة المضافة", outputVatYtd: "ضريبة المخرجات (السنة)", invoicesIssued: "فواتير مُصدرة",
   openOpportunities: "فرص مفتوحة", aiAssistant: "المساعد الذكي",

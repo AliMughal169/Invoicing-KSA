@@ -160,6 +160,30 @@ export class TenantProvisionerService {
       vat_rate numeric(5,2) NOT NULL DEFAULT 15.00,
       line_total numeric(14,2) NOT NULL DEFAULT 0)`);
 
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."quotations" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      number text NOT NULL,
+      customer_id text REFERENCES "__S__"."customers"(id) ON DELETE SET NULL,
+      issue_date date NOT NULL DEFAULT current_date,
+      due_date date,
+      status text NOT NULL DEFAULT 'draft',
+      subtotal numeric(14,2) NOT NULL DEFAULT 0,
+      vat_total numeric(14,2) NOT NULL DEFAULT 0,
+      total numeric(14,2) NOT NULL DEFAULT 0,
+      currency text NOT NULL DEFAULT 'SAR',
+      converted_to_invoice_id text REFERENCES "__S__"."invoices"(id) ON DELETE SET NULL,
+      created_at timestamptz DEFAULT now(),
+      updated_at timestamptz DEFAULT now())`);
+
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."quotation_lines" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      quotation_id text NOT NULL REFERENCES "__S__"."quotations"(id) ON DELETE CASCADE,
+      description text NOT NULL,
+      qty numeric(14,2) NOT NULL DEFAULT 1,
+      unit_price numeric(14,2) NOT NULL DEFAULT 0,
+      vat_rate numeric(5,2) NOT NULL DEFAULT 15.00,
+      line_total numeric(14,2) NOT NULL DEFAULT 0)`);
+
     // Vendors + Bills (AP side)
     await q(`CREATE TABLE IF NOT EXISTS "__S__"."vendors" (
       id text PRIMARY KEY DEFAULT gen_random_uuid()::text,

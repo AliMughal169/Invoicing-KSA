@@ -8,5 +8,6 @@ import { AccountingModule } from "../accounting/accounting.module";
   imports: [AccountingModule],
   controllers: [InvoicingController],
   providers: [InvoicingService, ZatcaService],
+  exports: [InvoicingService],
 })
 export class InvoicingModule {}

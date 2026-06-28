@@ -10,6 +10,10 @@ const MAP: Record<string, { label: string; variant: "default" | "success" | "war
   proposal: { label: "Proposal", variant: "warning" },
   won: { label: "Won", variant: "success" },
   lost: { label: "Lost", variant: "destructive" },
+  sent: { label: "Sent", variant: "warning" },
+  accepted: { label: "Accepted", variant: "success" },
+  declined: { label: "Declined", variant: "destructive" },
+  invoiced: { label: "Invoiced", variant: "default" },
 };
 
 export function StatusBadge({ status }: { status: string }) {
