@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
-  LayoutDashboard, Users, FileText, BookOpen, LogOut, Building2, Package, TrendingUp, Globe, ClipboardList, CalendarDays, Receipt, Truck, Scale,
+  LayoutDashboard, Users, FileText, BookOpen, LogOut, Building2, Package, TrendingUp, Globe, ClipboardList, CalendarDays, Receipt, Truck, Scale, Settings,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: "/due-dates", label: "Due Dates", icon: CalendarDays },
     { href: "/accounting/journal", label: t("accounting"), icon: BookOpen },
     { href: "/accounting/trial-balance", label: "Trial Balance", icon: Scale },
+    { href: "/settings", label: t("settings"), icon: Settings },
   ];
 
   return (

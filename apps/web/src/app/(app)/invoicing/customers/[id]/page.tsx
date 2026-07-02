@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageShell } from "@/components/page-shell";
 import { CustomerForm } from "@/components/customer-form";
+import { StatusBadge } from "@/components/status-badge";
 
 function asNumber(value: any) {
   const numeric = Number(value);
@@ -352,8 +353,39 @@ export default function CustomerDetailPage() {
 
                   <details className="rounded-lg border bg-card p-4">
                     <summary className="cursor-pointer text-sm font-medium">Quotations</summary>
-                    <div className="mt-4 rounded-md border border-dashed p-4 text-sm text-muted-foreground">
-                      Quotations will appear here when quotation management is connected to customer records.
+                    <div className="mt-4 overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Number</TableHead>
+                            <TableHead>Issue Date</TableHead>
+                            <TableHead>Expiry Date</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead className="text-right">Total</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {customer.quotations?.length ? customer.quotations.map((q: any) => (
+                            <TableRow key={q.id}>
+                              <TableCell className="font-semibold text-zinc-900">{q.number}</TableCell>
+                              <TableCell className="text-muted-foreground">{formatDate(q.issue_date)}</TableCell>
+                              <TableCell className="text-muted-foreground">{q.due_date ? formatDate(q.due_date) : "—"}</TableCell>
+                              <TableCell><StatusBadge status={q.status} /></TableCell>
+                              <TableCell className="text-right font-bold text-zinc-900">{formatSAR(q.total)}</TableCell>
+                              <TableCell className="text-right">
+                                <Button asChild size="sm" variant="ghost">
+                                  <Link href={`/invoicing/quotations/${q.id}`}>
+                                    <FileText className="h-3.5 w-3.5 mr-1" /> View/Print
+                                  </Link>
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          )) : (
+                            <TableRow><TableCell colSpan={6} className="py-8 text-center text-muted-foreground">No quotations yet.</TableCell></TableRow>
+                          )}
+                        </TableBody>
+                      </Table>
                     </div>
                   </details>
 

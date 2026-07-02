@@ -24,6 +24,7 @@ export class QuotationsController {
     dueDate?: string;
     isTaxQuote?: boolean;
     lines: { description: string; qty: number; unitPrice: number; vatRate?: number }[];
+    customFields?: Record<string, any>;
   }) {
     return this.quotationsService.createQuotation(b);
   }
@@ -36,6 +37,7 @@ export class QuotationsController {
     status?: string;
     isTaxQuote?: boolean;
     lines?: { description: string; qty: number; unitPrice: number; vatRate?: number }[];
+    customFields?: Record<string, any>;
   }) {
     return this.quotationsService.updateQuotation(id, b);
   }

@@ -82,6 +82,7 @@ export class InvoicingService {
     state?: string;
     city?: string;
     country?: string;
+    customFields?: Record<string, any>;
   }) {
     const payload = this.customerPayload(input);
     return this.db.insertReturning(
@@ -90,8 +91,8 @@ export class InvoicingService {
         email, vat_number, contact_person_name, company_phone, contact_person_phone,
         contact_person_phone_same_as_company, work_phone_country_code, personal_phone_country_code,
         work_phone, personal_phone, language, documents_json, remarks,
-        shipping_address_json, billing_address_json, address, state, city, country
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27) RETURNING *`,
+        shipping_address_json, billing_address_json, address, state, city, country, custom_fields
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28::jsonb) RETURNING *`,
       payload,
     );
   }
@@ -128,6 +129,7 @@ export class InvoicingService {
     state?: string;
     city?: string;
     country?: string;
+    customFields?: Record<string, any>;
   }) {
     const payload = this.customerPayload(input);
     return this.db.insertReturning(
@@ -137,8 +139,8 @@ export class InvoicingService {
         company_phone=$12, contact_person_phone=$13, contact_person_phone_same_as_company=$14,
         work_phone_country_code=$15, personal_phone_country_code=$16, work_phone=$17, personal_phone=$18,
         language=$19, documents_json=$20, remarks=$21, shipping_address_json=$22, billing_address_json=$23,
-        address=$24, state=$25, city=$26, country=$27
-      WHERE id = $28 RETURNING *`,
+        address=$24, state=$25, city=$26, country=$27, custom_fields=$28::jsonb
+      WHERE id = $29 RETURNING *`,
       [...payload, id],
     );
   }
@@ -229,7 +231,7 @@ export class InvoicingService {
     if (!rows[0]) throw new NotFoundException("Customer not found");
 
     const customer = rows[0];
-    const [invoices, payments, comments, statement] = await Promise.all([
+    const [invoices, payments, comments, statement, quotations] = await Promise.all([
       this.db.query(
         `SELECT id, number, issue_date, due_date, status, subtotal, vat_total, total, currency, created_at
          FROM "__S__"."invoices" WHERE customer_id = $1 ORDER BY created_at DESC`,
@@ -245,6 +247,11 @@ export class InvoicingService {
       ),
       this.customerComments(id),
       this.customerStatement(id),
+      this.db.query(
+        `SELECT id, number, issue_date, due_date, status, subtotal, vat_total, total, currency, created_at
+         FROM "__S__"."quotations" WHERE customer_id = $1 ORDER BY created_at DESC`,
+        [id],
+      ),
     ]);
 
     return {
@@ -252,10 +259,12 @@ export class InvoicingService {
       documents: this.safeJson(customer.documents_json),
       billing_address: this.safeJson(customer.billing_address_json),
       shipping_address: this.safeJson(customer.shipping_address_json),
+      custom_fields: customer.custom_fields ? (typeof customer.custom_fields === 'string' ? JSON.parse(customer.custom_fields) : customer.custom_fields) : {},
       invoices,
       payments,
       comments,
       statement,
+      quotations,
     };
   }
 
@@ -287,6 +296,7 @@ export class InvoicingService {
     state?: string;
     city?: string;
     country?: string;
+    customFields?: Record<string, any>;
   }) {
     const primaryContact = [input.salutation, input.firstName, input.lastName].filter(Boolean).join(" ").trim();
     const displayName = input.displayName ?? input.name ?? input.companyName ?? primaryContact ?? "Customer";
@@ -326,6 +336,7 @@ export class InvoicingService {
       billingAddress?.state ?? input.state ?? null,
       billingAddress?.city ?? input.city ?? null,
       billingAddress?.country ?? input.country ?? null,
+      JSON.stringify(input.customFields || {}),
     ];
   }
 
@@ -372,15 +383,18 @@ export class InvoicingService {
     if (!rows[0]) throw new NotFoundException("Invoice not found");
     const lines = await this.db.query(
       `SELECT * FROM "__S__"."invoice_lines" WHERE invoice_id = $1`, [id]);
-    return { ...rows[0], lines };
+    const inv = rows[0];
+    const customFields = inv.custom_fields ? (typeof inv.custom_fields === 'string' ? JSON.parse(inv.custom_fields) : inv.custom_fields) : {};
+    return { ...inv, custom_fields: customFields, lines };
   }
 
   async createInvoice(input: {
-    customerId: string;
+    customerId?: string;
     issueDate?: string;
     dueDate?: string;
     isTaxInvoice?: boolean;
     lines: InvoiceLineInput[];
+    customFields?: Record<string, any>;
   }) {
     if (!input.lines?.length) throw new BadRequestException("At least one line is required");
 
@@ -400,11 +414,11 @@ export class InvoicingService {
 
     const invoice = await this.db.insertReturning<any>(
       `INSERT INTO "__S__"."invoices"
-       (number, customer_id, issue_date, due_date, status, subtotal, vat_total, total, is_tax_invoice)
-       VALUES ($1,$2, COALESCE($3::date, current_date), $4::date, 'draft', $5::numeric, $6::numeric, $7::numeric, $8)
+       (number, customer_id, issue_date, due_date, status, subtotal, vat_total, total, is_tax_invoice, custom_fields)
+       VALUES ($1,$2, COALESCE($3::date, current_date), $4::date, 'draft', $5::numeric, $6::numeric, $7::numeric, $8, $9::jsonb)
        RETURNING *`,
       [number, input.customerId, input.issueDate ?? null, input.dueDate ?? null,
-       subtotal, vatTotal, total, isTaxInvoice],
+       subtotal, vatTotal, total, isTaxInvoice, JSON.stringify(input.customFields || {})],
     );
 
     for (const l of computed) {

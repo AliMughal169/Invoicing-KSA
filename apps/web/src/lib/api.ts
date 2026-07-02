@@ -78,6 +78,7 @@ export const api = {
     state?: string;
     city?: string;
     country?: string;
+    customFields?: Record<string, any>;
   }) =>
     request<any>("/invoicing/customers", { method: "POST", body: JSON.stringify(b) }),
   updateCustomer: (id: string, b: {
@@ -108,6 +109,7 @@ export const api = {
     state?: string;
     city?: string;
     country?: string;
+    customFields?: Record<string, any>;
   }) => request<any>(`/invoicing/customers/${id}`, { method: "POST", body: JSON.stringify(b) }),
   deleteCustomer: (id: string) => request<any>(`/invoicing/customers/${id}/delete`, { method: "POST" }),
   listCustomerComments: (id: string) => request<any[]>(`/invoicing/customers/${id}/comments`),
@@ -120,10 +122,11 @@ export const api = {
   listInvoices: () => request<any[]>("/invoicing/invoices"),
   getInvoice: (id: string) => request<any>(`/invoicing/invoices/${id}`),
   createInvoice: (b: {
-    customerId: string;
+    customerId?: string;
     lines: { description: string; qty: number; unitPrice: number; vatRate?: number }[];
     dueDate?: string;
     isTaxInvoice?: boolean;
+    customFields?: Record<string, any>;
   }) => request<any>("/invoicing/invoices", { method: "POST", body: JSON.stringify(b) }),
   issueInvoice: (id: string) =>
     request<any>(`/invoicing/invoices/${id}/issue`, { method: "POST" }),
@@ -134,10 +137,11 @@ export const api = {
   listQuotations: () => request<any[]>("/invoicing/quotations"),
   getQuotation: (id: string) => request<any>(`/invoicing/quotations/${id}`),
   createQuotation: (b: {
-    customerId: string;
+    customerId?: string;
     lines: { description: string; qty: number; unitPrice: number; vatRate?: number }[];
     dueDate?: string;
     isTaxQuote?: boolean;
+    customFields?: Record<string, any>;
   }) => request<any>("/invoicing/quotations", { method: "POST", body: JSON.stringify(b) }),
   updateQuotation: (id: string, b: {
     customerId?: string;
@@ -145,6 +149,7 @@ export const api = {
     dueDate?: string;
     isTaxQuote?: boolean;
     status?: string;
+    customFields?: Record<string, any>;
   }) => request<any>(`/invoicing/quotations/${id}`, { method: "POST", body: JSON.stringify(b) }),
   deleteQuotation: (id: string) =>
     request<any>(`/invoicing/quotations/${id}/delete`, { method: "POST" }),
@@ -213,6 +218,34 @@ export const api = {
     request<any>(`/purchasing/bills/${id}/post`, { method: "POST" }),
   payBill: (id: string) =>
     request<any>(`/purchasing/bills/${id}/pay`, { method: "POST" }),
+
+  // Settings & Custom Fields
+  getSettings: () => request<any>("/settings"),
+  updateSettings: (b: any) => request<any>("/settings", { method: "POST", body: JSON.stringify(b) }),
+  deleteLetterhead: () => request<any>("/settings/letterhead", { method: "DELETE" }),
+  listCustomFields: (entityType?: string) => {
+    const p = new URLSearchParams();
+    if (entityType) p.set("entityType", entityType);
+    const qs = p.toString();
+    return request<any[]>(`/settings/custom-fields${qs ? "?" + qs : ""}`);
+  },
+  createCustomField: (b: any) => request<any>("/settings/custom-fields", { method: "POST", body: JSON.stringify(b) }),
+  deleteCustomField: (id: string) => request<any>(`/settings/custom-fields/${id}/delete`, { method: "POST" }),
+  uploadFile: async (file: File): Promise<{ url: string }> => {
+    const fd = new FormData();
+    fd.append("file", file);
+    const token = localStorage.getItem("erp.token");
+    const headers: Record<string, string> = {};
+    if (token) headers.Authorization = `Bearer ${token}`;
+    const res = await fetch(`${API_URL}/api/settings/upload`, {
+      method: "POST",
+      body: fd,
+      headers,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.message || "Upload failed");
+    return data;
+  },
 };
 
 export const session = {

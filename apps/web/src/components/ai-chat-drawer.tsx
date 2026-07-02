@@ -49,7 +49,7 @@ export function AiChatDrawer() {
       <Button
         onClick={() => setOpen(true)}
         className={cn(
-          "fixed bottom-6 z-40 shadow-lg rounded-full h-12 w-12 p-0",
+          "fixed bottom-6 z-40 shadow-lg rounded-full h-12 w-12 p-0 print:hidden",
           locale === "ar" ? "left-6" : "right-6",
         )}
         aria-label="Open AI"

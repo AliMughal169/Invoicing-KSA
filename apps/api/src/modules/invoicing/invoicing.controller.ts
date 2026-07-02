@@ -39,6 +39,7 @@ export class InvoicingController {
     state?: string;
     city?: string;
     country?: string;
+    customFields?: Record<string, any>;
   }) {
     return this.inv.createCustomer(b);
   }
@@ -71,6 +72,7 @@ export class InvoicingController {
     state?: string;
     city?: string;
     country?: string;
+    customFields?: Record<string, any>;
   }) {
     return this.inv.updateCustomer(id, b);
   }
@@ -99,8 +101,9 @@ export class InvoicingController {
 
   @Post("invoices")
   create(@Body() b: {
-    customerId: string; issueDate?: string; dueDate?: string; isTaxInvoice?: boolean;
+    customerId?: string; issueDate?: string; dueDate?: string; isTaxInvoice?: boolean;
     lines: { description: string; qty: number; unitPrice: number; vatRate?: number }[];
+    customFields?: Record<string, any>;
   }) { return this.inv.createInvoice(b); }
 
   @Post("invoices/:id/issue")

@@ -17,6 +17,7 @@ const en: Dict = {
   status: "Status", number: "Number", customer: "Customer", date: "Date",
   total: "Total", actions: "Actions", create: "Create", cancel: "Cancel",
   issue: "Issue", markPaid: "Mark paid", viewPdf: "View PDF",
+  settings: "Settings", companyProfile: "Company Profile", printSettings: "Print & Layout", customFields: "Custom Fields",
 };
 const ar: Dict = {
   workspace: "مساحة العمل", dashboard: "لوحة التحكم", contacts: "جهات الاتصال",
@@ -31,6 +32,7 @@ const ar: Dict = {
   status: "الحالة", number: "الرقم", customer: "العميل", date: "التاريخ",
   total: "الإجمالي", actions: "إجراءات", create: "إنشاء", cancel: "إلغاء",
   issue: "إصدار", markPaid: "تم الدفع", viewPdf: "عرض PDF",
+  settings: "الإعدادات", companyProfile: "ملف الشركة", printSettings: "الطباعة والتصميم", customFields: "الحقول المخصصة",
 };
 
 const DICT: Record<Locale, Dict> = { en, ar };

@@ -256,6 +256,46 @@ export class TenantProvisionerService {
       line_total numeric(14,2) NOT NULL DEFAULT 0,
       expense_account_id text REFERENCES "__S__"."accounts"(id))`);
 
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."settings" (
+      id text PRIMARY KEY DEFAULT 'default',
+      company_name_en text,
+      company_name_ar text,
+      cr_number text,
+      vat_number text,
+      address_line1 text,
+      address_line2 text,
+      city text,
+      state text,
+      country text,
+      postal_code text,
+      company_logo_url text,
+      letterhead_url text,
+      top_margin integer DEFAULT 0,
+      bottom_margin integer DEFAULT 0,
+      print_on_letterhead boolean DEFAULT false,
+      created_at timestamptz DEFAULT now(),
+      updated_at timestamptz DEFAULT now())`);
+
+    await q(`INSERT INTO "__S__"."settings" (id) VALUES ('default') ON CONFLICT DO NOTHING`);
+
+    await q(`ALTER TABLE "__S__"."settings" ADD COLUMN IF NOT EXISTS top_margin integer DEFAULT 0`);
+    await q(`ALTER TABLE "__S__"."settings" ADD COLUMN IF NOT EXISTS bottom_margin integer DEFAULT 0`);
+    await q(`ALTER TABLE "__S__"."settings" ADD COLUMN IF NOT EXISTS print_on_letterhead boolean DEFAULT false`);
+
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."custom_field_definitions" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      entity_type text NOT NULL,
+      field_key text NOT NULL,
+      field_label text NOT NULL,
+      field_type text NOT NULL,
+      is_required boolean NOT NULL DEFAULT false,
+      created_at timestamptz DEFAULT now(),
+      CONSTRAINT custom_field_definitions_entity_key_unique UNIQUE (entity_type, field_key))`);
+
+    await q(`ALTER TABLE "__S__"."invoices" ADD COLUMN IF NOT EXISTS custom_fields jsonb DEFAULT '{}'::jsonb`);
+    await q(`ALTER TABLE "__S__"."quotations" ADD COLUMN IF NOT EXISTS custom_fields jsonb DEFAULT '{}'::jsonb`);
+    await q(`ALTER TABLE "__S__"."customers" ADD COLUMN IF NOT EXISTS custom_fields jsonb DEFAULT '{}'::jsonb`);
+
     await q(`INSERT INTO "__S__"."_meta" (key, value) VALUES ('provisioned_at', now()::text)
       ON CONFLICT (key) DO NOTHING`);
   }
