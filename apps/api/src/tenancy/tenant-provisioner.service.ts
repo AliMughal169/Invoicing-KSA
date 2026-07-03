@@ -1,9 +1,24 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, OnModuleInit, Logger } from "@nestjs/common";
 import { PrismaService } from "../core/database/prisma.service";
 
 @Injectable()
-export class TenantProvisionerService {
+export class TenantProvisionerService implements OnModuleInit {
+  private readonly logger = new Logger(TenantProvisionerService.name);
   constructor(private readonly prisma: PrismaService) {}
+
+  async onModuleInit() {
+    this.logger.log("Checking and migrating schemas of all existing tenants on boot...");
+    try {
+      const tenants = await this.prisma.tenant.findMany();
+      for (const t of tenants) {
+        this.logger.log(`Ensuring schema setup for tenant: ${t.slug} (Schema: ${t.schema})`);
+        await this.provision(t.schema);
+      }
+      this.logger.log("All tenant schemas successfully verified/migrated.");
+    } catch (err) {
+      this.logger.error("Failed to run dynamic tenant migrations:", err);
+    }
+  }
 
   schemaNameFor(slug: string): string {
     const safe = slug.toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 40);
@@ -116,9 +131,55 @@ export class TenantProvisionerService {
       created_at timestamptz DEFAULT now())`);
     await q(`CREATE TABLE IF NOT EXISTS "__S__"."products" (
       id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      sku text, name text NOT NULL,
-      price_sar numeric(14,2) NOT NULL DEFAULT 0,
-      vat_rate numeric(5,2) NOT NULL DEFAULT 15.00,
+      sku text,
+      name_en text NOT NULL DEFAULT '',
+      name_ar text NOT NULL DEFAULT '',
+      barcode text,
+      image_url text,
+      unit text NOT NULL DEFAULT 'Pcs',
+      cost_price numeric(14,2) NOT NULL DEFAULT 0,
+      sales_price numeric(14,2) NOT NULL DEFAULT 0,
+      tax_category text NOT NULL DEFAULT 'STANDARD',
+      hs_code text,
+      track_inventory boolean NOT NULL DEFAULT false,
+      qty_on_hand numeric(14,2) NOT NULL DEFAULT 0,
+      qty_reserved numeric(14,2) NOT NULL DEFAULT 0,
+      reorder_level numeric(14,2) NOT NULL DEFAULT 0,
+      warehouse_location text,
+      created_at timestamptz DEFAULT now())`);
+    
+    for (const col of [
+      "sku text",
+      "name_en text NOT NULL DEFAULT ''",
+      "name_ar text NOT NULL DEFAULT ''",
+      "barcode text",
+      "image_url text",
+      "unit text NOT NULL DEFAULT 'Pcs'",
+      "cost_price numeric(14,2) NOT NULL DEFAULT 0",
+      "sales_price numeric(14,2) NOT NULL DEFAULT 0",
+      "tax_category text NOT NULL DEFAULT 'STANDARD'",
+      "hs_code text",
+      "track_inventory boolean NOT NULL DEFAULT false",
+      "qty_on_hand numeric(14,2) NOT NULL DEFAULT 0",
+      "qty_reserved numeric(14,2) NOT NULL DEFAULT 0",
+      "reorder_level numeric(14,2) NOT NULL DEFAULT 0",
+      "warehouse_location text",
+    ]) {
+      await q(`ALTER TABLE "__S__"."products" ADD COLUMN IF NOT EXISTS ${col}`);
+    }
+
+    try {
+      await q(`UPDATE "__S__"."products" SET name_en = name WHERE (name_en = '' OR name_en IS NULL) AND name IS NOT NULL AND name <> ''`);
+      await q(`UPDATE "__S__"."products" SET sales_price = price_sar WHERE sales_price = 0 AND price_sar IS NOT NULL AND price_sar <> 0`);
+      await q(`CREATE UNIQUE INDEX IF NOT EXISTS products_sku_idx ON "__S__"."products" (sku) WHERE sku IS NOT NULL AND sku <> ''`);
+    } catch {}
+
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."stock_movements" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      product_id text NOT NULL REFERENCES "__S__"."products"(id) ON DELETE CASCADE,
+      quantity numeric(14,2) NOT NULL,
+      type text NOT NULL,
+      reference_id text,
       created_at timestamptz DEFAULT now())`);
     await q(`CREATE TABLE IF NOT EXISTS "__S__"."invoices" (
       id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -159,6 +220,7 @@ export class TenantProvisionerService {
       unit_price numeric(14,2) NOT NULL DEFAULT 0,
       vat_rate numeric(5,2) NOT NULL DEFAULT 15.00,
       line_total numeric(14,2) NOT NULL DEFAULT 0)`);
+    await q(`ALTER TABLE "__S__"."invoice_lines" ADD COLUMN IF NOT EXISTS product_id text REFERENCES "__S__"."products"(id) ON DELETE SET NULL`);
 
     await q(`CREATE TABLE IF NOT EXISTS "__S__"."quotations" (
       id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
@@ -183,33 +245,59 @@ export class TenantProvisionerService {
       unit_price numeric(14,2) NOT NULL DEFAULT 0,
       vat_rate numeric(5,2) NOT NULL DEFAULT 15.00,
       line_total numeric(14,2) NOT NULL DEFAULT 0)`);
+    await q(`ALTER TABLE "__S__"."quotation_lines" ADD COLUMN IF NOT EXISTS product_id text REFERENCES "__S__"."products"(id) ON DELETE SET NULL`);
 
     // Vendors + Bills (AP side)
     await q(`CREATE TABLE IF NOT EXISTS "__S__"."vendors" (
       id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
-      name text NOT NULL,
-      vat_number text,
+      name_en text NOT NULL DEFAULT '',
+      name_ar text NOT NULL DEFAULT '',
+      vat_number text UNIQUE NOT NULL,
+      cr_number text,
       email text,
       phone text,
       address text,
-      city text,
-      country text,
+      payment_terms text,
+      outstanding_balance numeric(14,2) NOT NULL DEFAULT 0,
       created_at timestamptz DEFAULT now())`);
+
+    for (const col of [
+      "name_en text NOT NULL DEFAULT ''",
+      "name_ar text NOT NULL DEFAULT ''",
+      "vat_number text",
+      "cr_number text",
+      "payment_terms text",
+      "outstanding_balance numeric(14,2) NOT NULL DEFAULT 0",
+    ]) {
+      await q(`ALTER TABLE "__S__"."vendors" ADD COLUMN IF NOT EXISTS ${col}`);
+    }
+
+    try {
+      await q(`UPDATE "__S__"."vendors" SET name_en = name WHERE (name_en = '' OR name_en IS NULL) AND name IS NOT NULL AND name <> ''`);
+      await q(`CREATE UNIQUE INDEX IF NOT EXISTS vendors_vat_number_idx ON "__S__"."vendors" (vat_number) WHERE vat_number IS NOT NULL AND vat_number <> ''`);
+    } catch {}
 
     await q(`CREATE TABLE IF NOT EXISTS "__S__"."bills" (
       id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
       number text NOT NULL,
+      vendor_invoice_ref text,
       vendor_id text REFERENCES "__S__"."vendors"(id) ON DELETE SET NULL,
       bill_date date NOT NULL DEFAULT current_date,
       due_date date,
-      status text NOT NULL DEFAULT 'draft',
+      status text NOT NULL DEFAULT 'DRAFT',
       subtotal numeric(14,2) NOT NULL DEFAULT 0,
       vat_total numeric(14,2) NOT NULL DEFAULT 0,
       total numeric(14,2) NOT NULL DEFAULT 0,
       currency text NOT NULL DEFAULT 'SAR',
-      reference text,
-      notes text,
+      custom_fields jsonb NOT NULL DEFAULT '{}'::jsonb,
       created_at timestamptz DEFAULT now())`);
+
+    for (const col of [
+      "vendor_invoice_ref text",
+      "custom_fields jsonb NOT NULL DEFAULT '{}'::jsonb",
+    ]) {
+      await q(`ALTER TABLE "__S__"."bills" ADD COLUMN IF NOT EXISTS ${col}`);
+    }
 
     // Accounting
     await q(`CREATE TABLE IF NOT EXISTS "__S__"."accounts" (
@@ -231,6 +319,7 @@ export class TenantProvisionerService {
     await q(`INSERT INTO "__S__"."accounts" (code, name, type) VALUES
       ('1000','Cash','asset'),
       ('1100','Accounts Receivable','asset'),
+      ('1200','Inventory','asset'),
       ('1400','Input VAT','asset'),
       ('2100','VAT Payable','liability'),
       ('2200','Accounts Payable','liability'),
@@ -246,6 +335,10 @@ export class TenantProvisionerService {
       ('5900','Other Operating Expense','expense')
       ON CONFLICT (code) DO NOTHING`);
 
+    try {
+      await q(`INSERT INTO "__S__"."accounts" (code, name, type) VALUES ('1200', 'Inventory', 'asset') ON CONFLICT (code) DO NOTHING`);
+    } catch {}
+
     await q(`CREATE TABLE IF NOT EXISTS "__S__"."bill_lines" (
       id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
       bill_id text NOT NULL REFERENCES "__S__"."bills"(id) ON DELETE CASCADE,
@@ -254,7 +347,9 @@ export class TenantProvisionerService {
       unit_price numeric(14,2) NOT NULL DEFAULT 0,
       vat_rate numeric(5,2) NOT NULL DEFAULT 15.00,
       line_total numeric(14,2) NOT NULL DEFAULT 0,
-      expense_account_id text REFERENCES "__S__"."accounts"(id))`);
+      expense_account_id text REFERENCES "__S__"."accounts"(id),
+      product_id text REFERENCES "__S__"."products"(id) ON DELETE SET NULL)`);
+    await q(`ALTER TABLE "__S__"."bill_lines" ADD COLUMN IF NOT EXISTS product_id text REFERENCES "__S__"."products"(id) ON DELETE SET NULL`);
 
     await q(`CREATE TABLE IF NOT EXISTS "__S__"."settings" (
       id text PRIMARY KEY DEFAULT 'default',

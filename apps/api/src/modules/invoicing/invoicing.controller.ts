@@ -98,9 +98,17 @@ export class InvoicingController {
   @Get("customers/:id/statement") customerStatement(@Param("id") id: string) { return this.inv.customerStatement(id); }
 
   @Get("products") listProducts() { return this.inv.listProducts(); }
+  @Get("products/:id")
+  getProduct(@Param("id") id: string) {
+    return this.inv.getProduct(id);
+  }
   @Post("products")
-  createProduct(@Body() b: { name: string; priceSar: number; sku?: string; vatRate?: number }) {
-    return this.inv.createProduct(b.name, b.priceSar, b.sku, b.vatRate);
+  createProduct(@Body() b: any) {
+    return this.inv.createProduct(b);
+  }
+  @Patch("products/:id")
+  updateProduct(@Param("id") id: string, @Body() b: any) {
+    return this.inv.updateProduct(id, b);
   }
 
   @Get("invoices") list() { return this.inv.listInvoices(); }

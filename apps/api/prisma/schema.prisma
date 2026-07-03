@@ -70,3 +70,83 @@ model Invoice {
 
   @@map("invoices")
 }
+
+model Product {
+  id                String   @id @default(cuid())
+  nameEn            String   @map("name_en")
+  nameAr            String   @map("name_ar")
+  sku               String   @unique
+  barcode           String?
+  imageUrl          String?  @map("image_url")
+  unit              String   @default("Pcs")
+  costPrice         Decimal  @default(0) @db.Decimal(14, 2) @map("cost_price")
+  salesPrice        Decimal  @default(0) @db.Decimal(14, 2) @map("sales_price")
+  taxCategory       String   @default("STANDARD") @map("tax_category")
+  hsCode            String?  @map("hs_code")
+  trackInventory    Boolean  @default(false) @map("track_inventory")
+  qtyOnHand         Decimal  @default(0) @db.Decimal(14, 2) @map("qty_on_hand")
+  qtyReserved       Decimal  @default(0) @db.Decimal(14, 2) @map("qty_reserved")
+  reorderLevel      Decimal  @default(0) @db.Decimal(14, 2) @map("reorder_level")
+  warehouseLocation String?  @map("warehouse_location")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@map("products")
+}
+
+model StockMovement {
+  id          String   @id @default(uuid())
+  productId   String   @map("product_id")
+  quantity    Decimal  @db.Decimal(14, 2)
+  type        String
+  referenceId String?  @map("reference_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("stock_movements")
+}
+
+model Vendor {
+  id                 String   @id @default(uuid())
+  nameEn             String   @map("name_en")
+  nameAr             String   @map("name_ar")
+  vatNumber          String   @unique @map("vat_number")
+  crNumber           String?  @map("cr_number")
+  email              String?
+  phone              String?
+  address            String?
+  paymentTerms       String?  @map("payment_terms")
+  outstandingBalance Decimal  @default(0) @db.Decimal(14, 2) @map("outstanding_balance")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@map("vendors")
+}
+
+model Bill {
+  id               String   @id @default(uuid())
+  number           String
+  vendorInvoiceRef String?  @map("vendor_invoice_ref")
+  vendorId         String?  @map("vendor_id")
+  billDate         DateTime @default(now()) @map("bill_date")
+  dueDate          DateTime? @map("due_date")
+  status           String   @default("DRAFT")
+  subtotal         Decimal  @db.Decimal(14, 2)
+  vatTotal         Decimal  @db.Decimal(14, 2) @map("vat_total")
+  total            Decimal  @db.Decimal(14, 2)
+  customFields     Json     @default("{}") @map("custom_fields")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@map("bills")
+}
+
+model BillLine {
+  id          String   @id @default(uuid())
+  billId      String   @map("bill_id")
+  description String
+  qty         Decimal  @db.Decimal(14, 2)
+  unitPrice   Decimal  @db.Decimal(14, 2) @map("unit_price")
+  vatRate     Decimal  @default(15.00) @db.Decimal(5, 2) @map("vat_rate")
+  lineTotal   Decimal  @db.Decimal(14, 2) @map("line_total")
+  productId   String?  @map("product_id")
+
+  @@map("bill_lines")
+}
+

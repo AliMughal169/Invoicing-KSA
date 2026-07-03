@@ -6,6 +6,7 @@ import { TenantContextService } from "../../tenancy/tenant-context.service";
 import { PrismaService } from "../../core/database/prisma.service";
 
 interface InvoiceLineInput {
+  productId?: string;
   description: string;
   qty: number;
   unitPrice: number;
@@ -356,12 +357,120 @@ export class InvoicingService {
 
   // Products
   listProducts() {
-    return this.db.query(`SELECT * FROM "__S__"."products" ORDER BY created_at DESC`);
+    return this.db.query(`
+      SELECT *,
+             sales_price AS price_sar,
+             name_en AS name,
+             CASE WHEN tax_category = 'STANDARD' THEN 15.00 ELSE 0.00 END AS vat_rate
+      FROM "__S__"."products"
+      ORDER BY created_at DESC`);
   }
-  createProduct(name: string, priceSar: number, sku?: string, vatRate = 15) {
+  async getProduct(id: string) {
+    const rows = await this.db.query<any>(
+      `SELECT *,
+              sales_price AS price_sar,
+              name_en AS name,
+              CASE WHEN tax_category = 'STANDARD' THEN 15.00 ELSE 0.00 END AS vat_rate
+       FROM "__S__"."products" WHERE id = $1`, [id]);
+    if (!rows[0]) throw new NotFoundException("Product not found");
+    return rows[0];
+  }
+  createProduct(b: {
+    nameEn: string;
+    nameAr: string;
+    sku: string;
+    barcode?: string;
+    imageUrl?: string;
+    unit?: string;
+    costPrice?: number;
+    salesPrice?: number;
+    taxCategory?: string;
+    hsCode?: string;
+    trackInventory?: boolean;
+    qtyOnHand?: number;
+    qtyReserved?: number;
+    reorderLevel?: number;
+    warehouseLocation?: string;
+  }) {
     return this.db.insertReturning(
-      `INSERT INTO "__S__"."products"(name,price_sar,sku,vat_rate) VALUES ($1,$2::numeric,$3,$4::numeric) RETURNING *`,
-      [name, priceSar, sku ?? null, vatRate],
+      `INSERT INTO "__S__"."products"
+       (name_en, name_ar, sku, barcode, image_url, unit, cost_price, sales_price, tax_category, hs_code, track_inventory, qty_on_hand, qty_reserved, reorder_level, warehouse_location)
+       VALUES ($1, $2, $3, $4, $5, $6, $7::numeric, $8::numeric, $9, $10, $11, $12::numeric, $13::numeric, $14::numeric, $15)
+       RETURNING *, sales_price AS price_sar, name_en AS name`,
+      [
+        b.nameEn,
+        b.nameAr,
+        b.sku,
+        b.barcode ?? null,
+        b.imageUrl ?? null,
+        b.unit ?? "Pcs",
+        b.costPrice ?? 0,
+        b.salesPrice ?? 0,
+        b.taxCategory ?? "STANDARD",
+        b.hsCode ?? null,
+        b.trackInventory ?? false,
+        b.qtyOnHand ?? 0,
+        b.qtyReserved ?? 0,
+        b.reorderLevel ?? 0,
+        b.warehouseLocation ?? null
+      ]
+    );
+  }
+
+  updateProduct(id: string, b: {
+    nameEn?: string;
+    nameAr?: string;
+    sku?: string;
+    barcode?: string;
+    imageUrl?: string;
+    unit?: string;
+    costPrice?: number;
+    salesPrice?: number;
+    taxCategory?: string;
+    hsCode?: string;
+    trackInventory?: boolean;
+    qtyOnHand?: number;
+    qtyReserved?: number;
+    reorderLevel?: number;
+    warehouseLocation?: string;
+  }) {
+    return this.db.insertReturning(
+      `UPDATE "__S__"."products"
+       SET name_en = COALESCE($1, name_en),
+           name_ar = COALESCE($2, name_ar),
+           sku = COALESCE($3, sku),
+           barcode = COALESCE($4, barcode),
+           image_url = COALESCE($5, image_url),
+           unit = COALESCE($6, unit),
+           cost_price = COALESCE($7::numeric, cost_price),
+           sales_price = COALESCE($8::numeric, sales_price),
+           tax_category = COALESCE($9, tax_category),
+           hs_code = COALESCE($10, hs_code),
+           track_inventory = COALESCE($11, track_inventory),
+           qty_on_hand = COALESCE($12::numeric, qty_on_hand),
+           qty_reserved = COALESCE($13::numeric, qty_reserved),
+           reorder_level = COALESCE($14::numeric, reorder_level),
+           warehouse_location = COALESCE($15, warehouse_location)
+       WHERE id = $16
+       RETURNING *, sales_price AS price_sar, name_en AS name`,
+      [
+        b.nameEn ?? null,
+        b.nameAr ?? null,
+        b.sku ?? null,
+        b.barcode ?? null,
+        b.imageUrl ?? null,
+        b.unit ?? null,
+        b.costPrice ?? null,
+        b.salesPrice ?? null,
+        b.taxCategory ?? null,
+        b.hsCode ?? null,
+        b.trackInventory ?? null,
+        b.qtyOnHand ?? null,
+        b.qtyReserved ?? null,
+        b.reorderLevel ?? null,
+        b.warehouseLocation ?? null,
+        id
+      ]
     );
   }
 
@@ -424,9 +533,9 @@ export class InvoicingService {
     for (const l of computed) {
       await this.db.exec(
         `INSERT INTO "__S__"."invoice_lines"
-         (invoice_id, description, qty, unit_price, vat_rate, line_total)
-         VALUES ($1,$2,$3::numeric,$4::numeric,$5::numeric,$6::numeric)`,
-        [invoice.id, l.description, l.qty, l.unitPrice, l.vatRate,
+         (invoice_id, product_id, description, qty, unit_price, vat_rate, line_total)
+         VALUES ($1,$2,$3,$4::numeric,$5::numeric,$6::numeric,$7::numeric)`,
+        [invoice.id, l.productId || null, l.description, l.qty, l.unitPrice, l.vatRate,
          l.lineSubtotal + l.lineVat],
       );
     }
@@ -510,9 +619,9 @@ export class InvoicingService {
     for (const l of computed) {
       await this.db.exec(
         `INSERT INTO "__S__"."invoice_lines"
-         (invoice_id, description, qty, unit_price, vat_rate, line_total)
-         VALUES ($1,$2,$3::numeric,$4::numeric,$5::numeric,$6::numeric)`,
-        [invoice.id, l.description, l.qty, l.unitPrice, l.vatRate,
+         (invoice_id, product_id, description, qty, unit_price, vat_rate, line_total)
+         VALUES ($1,$2,$3,$4::numeric,$5::numeric,$6::numeric,$7::numeric)`,
+        [invoice.id, l.productId || null, l.description, l.qty, l.unitPrice, l.vatRate,
          l.lineSubtotal + l.lineVat],
       );
     }
@@ -542,12 +651,22 @@ export class InvoicingService {
       isTaxInvoice,
       customFields,
       lines: lines.map((l: any) => ({
+        productId: l.product_id,
         description: l.description,
         qty: Number(l.qty),
         unitPrice: Number(l.unit_price),
         vatRate: Number(l.vat_rate),
       })),
     });
+
+    for (const l of lines) {
+      if (l.product_id) {
+        await this.db.exec(
+          `UPDATE "__S__"."products" SET qty_reserved = qty_reserved + $1 WHERE id = $2`,
+          [Number(l.qty), l.product_id]
+        );
+      }
+    }
 
     await this.db.exec(
       `UPDATE "__S__"."quotations" SET status = 'invoiced', converted_to_invoice_id = $1, updated_at = now() WHERE id = $2`,
@@ -565,10 +684,51 @@ export class InvoicingService {
 
     const number = await this.nextNumber();
 
-    await this.db.exec(
-      `UPDATE "__S__"."invoices" SET status = $1, number = $2, updated_at = now() WHERE id = $3`,
-      [targetStatus, number, id]
-    );
+    const schema = this.ctx.getSchema()!;
+    await this.prisma.$transaction(async (tx) => {
+      const query = async <T = any>(sql: string, params: any[] = []) => {
+        return tx.$queryRawUnsafe<T[]>(sql.replace(/__S__/g, schema), ...params);
+      };
+      
+      const exec = async (sql: string, params: any[] = []) => {
+        return tx.$executeRawUnsafe(sql.replace(/__S__/g, schema), ...params);
+      };
+
+      const lines = await query(`SELECT * FROM "__S__"."invoice_lines" WHERE invoice_id = $1`, [id]);
+
+      for (const l of lines) {
+        if (l.product_id) {
+          const pRows = await query(`SELECT * FROM "__S__"."products" WHERE id = $1`, [l.product_id]);
+          if (pRows[0]) {
+            const prod = pRows[0];
+            const qty = Number(l.qty);
+            if (prod.track_inventory) {
+              const newQtyOnHand = Number(prod.qty_on_hand) - qty;
+              if (newQtyOnHand < 0) {
+                throw new BadRequestException(`Insufficient stock for product ${prod.name_en}`);
+              }
+            }
+            await exec(
+              `UPDATE "__S__"."products" 
+               SET qty_on_hand = CASE WHEN track_inventory THEN qty_on_hand - $1 ELSE qty_on_hand END,
+                   qty_reserved = qty_reserved - $1
+               WHERE id = $2`,
+              [qty, l.product_id]
+            );
+            await exec(
+              `INSERT INTO "__S__"."stock_movements" (product_id, quantity, type, reference_id)
+               VALUES ($1, $2::numeric, 'SALE', $3)`,
+              [l.product_id, -qty, id]
+            );
+          }
+        }
+      }
+
+      await exec(
+        `UPDATE "__S__"."invoices" SET status = $1, number = $2, updated_at = now() WHERE id = $3`,
+        [targetStatus, number, id]
+      );
+    });
 
     if (targetStatus === "issued") {
       const tenantId = this.ctx.getTenantId()!;

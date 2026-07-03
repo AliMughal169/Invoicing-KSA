@@ -13,6 +13,7 @@ import { AiModule } from "./modules/ai/ai.module";
 import { TasksModule } from "./modules/tasks/tasks.module";
 import { QuotationsModule } from "./modules/quotations/quotations.module";
 import { SettingsModule } from "./modules/settings/settings.module";
+import { UtilityModule } from "./modules/utility/utility.module";
 import { HealthController } from "./health.controller";
 import { TenantContextMiddleware } from "./tenancy/tenant-context.middleware";
 
@@ -36,6 +37,7 @@ import { TenantContextMiddleware } from "./tenancy/tenant-context.middleware";
     TasksModule,
     QuotationsModule,
     SettingsModule,
+    UtilityModule,
   ],
   controllers: [HealthController],
 })

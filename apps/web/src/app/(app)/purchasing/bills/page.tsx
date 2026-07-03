@@ -1,172 +1,220 @@
 "use client";
-import { useEffect, useState } from "react";
-import { Plus, Trash2, Send, CheckCircle2 } from "lucide-react";
+
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { Plus, CheckCircle, FileText, Send, Search, Filter, Edit, Trash2 } from "lucide-react";
 import { api } from "@/lib/api";
-import { formatSAR, formatDate } from "@/lib/utils";
+import { formatSAR } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
-import {
-  Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose,
-} from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader, PageShell } from "@/components/page-shell";
-import { StatusBadge } from "@/components/status-badge";
-
-interface Line { description: string; qty: number; unitPrice: number; expenseAccountId: string; }
-const EMPTY: Line = { description: "", qty: 1, unitPrice: 0, expenseAccountId: "" };
 
 export default function BillsPage() {
   const [rows, setRows] = useState<any[]>([]);
-  const [vendors, setVendors] = useState<any[]>([]);
-  const [accounts, setAccounts] = useState<any[]>([]);
-  const [open, setOpen] = useState(false);
-  const [vendorId, setVendorId] = useState("");
-  const [reference, setReference] = useState("");
-  const [lines, setLines] = useState<Line[]>([{ ...EMPTY }]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
 
   async function reload() {
-    const [bills, vens, accs] = await Promise.all([
-      api.listBills(), api.listVendors(), api.listAccounts(),
-    ]);
-    setRows(bills); setVendors(vens);
-    setAccounts(accs.filter((a: any) => a.type === "expense"));
-    if (!vendorId && vens[0]) setVendorId(vens[0].id);
+    try {
+      const data = await api.listBills();
+      setRows(data);
+    } catch (err) {
+      console.error("Failed to load bills:", err);
+    }
   }
-  useEffect(() => { reload(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
-  const subtotal = lines.reduce((s, l) => s + (Number(l.qty) || 0) * (Number(l.unitPrice) || 0), 0);
-  const vat = subtotal * 0.15;
-  const total = subtotal + vat;
-
-  async function create(e: React.FormEvent) {
-    e.preventDefault();
-    if (!vendorId) return;
-    await api.createBill({
-      vendorId, reference: reference || undefined,
-      lines: lines.map(l => ({
-        description: l.description, qty: Number(l.qty), unitPrice: Number(l.unitPrice),
-        expenseAccountId: l.expenseAccountId || undefined,
-      })),
-    });
-    setOpen(false);
-    setLines([{ ...EMPTY }]); setReference("");
+  useEffect(() => {
     reload();
-  }
-  function updateLine(i: number, patch: Partial<Line>) {
-    setLines((arr) => arr.map((l, idx) => idx === i ? { ...l, ...patch } : l));
-  }
+  }, []);
+
+  const handleApprove = async (id: string) => {
+    try {
+      await api.postBill(id);
+      reload();
+    } catch (err: any) {
+      alert("Failed to approve bill: " + err.message);
+    }
+  };
+
+  const handlePay = async (id: string) => {
+    try {
+      await api.payBill(id);
+      reload();
+    } catch (err: any) {
+      alert("Failed to record bill payment: " + err.message);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this draft bill? This cannot be undone.")) return;
+    try {
+      await api.deleteBill(id);
+      reload();
+    } catch (err: any) {
+      alert("Failed to delete bill: " + err.message);
+    }
+  };
+
+  const filteredRows = useMemo(() => {
+    return rows.filter((b) => {
+      if (statusFilter !== "all" && b.status !== statusFilter) {
+        return false;
+      }
+
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        return (
+          b.number?.toLowerCase().includes(q) ||
+          b.vendor_invoice_ref?.toLowerCase().includes(q) ||
+          b.vendor_name?.toLowerCase().includes(q)
+        );
+      }
+      return true;
+    });
+  }, [rows, statusFilter, searchQuery]);
 
   return (
     <PageShell>
       <PageHeader
-        title="Bills"
-        description="Vendor bills and expenses (AP)"
+        title="Purchase Bills"
+        description="Verify supplier invoices, record stock additions, and settle accounts payable accounts"
         actions={
-          <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild><Button><Plus className="h-4 w-4" /> New bill</Button></DialogTrigger>
-            <DialogContent className="max-w-3xl">
-              <DialogHeader><DialogTitle>New bill</DialogTitle></DialogHeader>
-              <form onSubmit={create} className="space-y-5">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>Vendor</Label>
-                    <select value={vendorId} onChange={(e) => setVendorId(e.target.value)}
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm" required>
-                      <option value="">Select vendor</option>
-                      {vendors.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Vendor reference</Label>
-                    <Input value={reference} onChange={(e) => setReference(e.target.value)} placeholder="INV-AWS-Q3" />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Lines</Label>
-                  <div className="space-y-2">
-                    {lines.map((l, i) => (
-                      <div key={i} className="grid grid-cols-12 gap-2">
-                        <Input className="col-span-4" placeholder="Description"
-                          value={l.description} onChange={(e) => updateLine(i, { description: e.target.value })} required />
-                        <Input className="col-span-1" type="number" min="0" placeholder="Qty"
-                          value={l.qty} onChange={(e) => updateLine(i, { qty: Number(e.target.value) })} required />
-                        <Input className="col-span-2" type="number" min="0" step="0.01" placeholder="Unit price"
-                          value={l.unitPrice} onChange={(e) => updateLine(i, { unitPrice: Number(e.target.value) })} required />
-                        <select value={l.expenseAccountId}
-                          onChange={(e) => updateLine(i, { expenseAccountId: e.target.value })}
-                          className="col-span-4 h-10 rounded-md border border-input bg-background px-2 text-sm">
-                          <option value="">Auto-categorize</option>
-                          {accounts.map((a) => <option key={a.id} value={a.id}>{a.code} — {a.name}</option>)}
-                        </select>
-                        <Button type="button" size="icon" variant="ghost" className="col-span-1"
-                          onClick={() => setLines(lines.filter((_, idx) => idx !== i))}
-                          disabled={lines.length === 1}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                  <Button type="button" variant="outline" size="sm"
-                    onClick={() => setLines([...lines, { ...EMPTY }])}>
-                    <Plus className="h-4 w-4" /> Add line
-                  </Button>
-                </div>
-
-                <div className="border-t pt-4 space-y-1 text-sm">
-                  <div className="flex justify-between"><span className="text-muted-foreground">Subtotal</span><span>{formatSAR(subtotal)}</span></div>
-                  <div className="flex justify-between"><span className="text-muted-foreground">VAT 15% (Input)</span><span>{formatSAR(vat)}</span></div>
-                  <div className="flex justify-between text-base font-semibold pt-2 border-t"><span>Total</span><span>{formatSAR(total)}</span></div>
-                </div>
-
-                <DialogFooter>
-                  <DialogClose asChild><Button type="button" variant="outline">Cancel</Button></DialogClose>
-                  <Button type="submit">Create draft</Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Button asChild className="bg-indigo-600 hover:bg-indigo-700 text-zinc-100">
+            <Link href="/purchasing/bills/new">
+              <Plus className="h-4 w-4 mr-2" /> New Bill
+            </Link>
+          </Button>
         }
       />
 
-      <Card>
+      {/* FILTER SEARCH TOOLBAR */}
+      <Card className="mb-6 bg-zinc-900/30 border-zinc-800">
+        <CardContent className="p-4 flex flex-col md:flex-row gap-4 items-center">
+          <div className="relative flex-1 w-full">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-zinc-450" />
+            <Input
+              placeholder="Search bills by number, supplier invoice reference, vendor..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9 bg-zinc-950/50 border-zinc-800 text-zinc-100 placeholder:text-zinc-555 h-10 w-full"
+            />
+          </div>
+          <div className="flex gap-3 w-full md:w-auto">
+            <div className="flex items-center gap-2 border border-zinc-800 rounded-md bg-zinc-950/20 px-3 h-10">
+              <Filter className="h-4 w-4 text-zinc-455" />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="bg-transparent border-none text-sm text-zinc-200 focus:outline-none cursor-pointer"
+              >
+                <option value="all" className="bg-zinc-900 text-zinc-200">All Statuses</option>
+                <option value="DRAFT" className="bg-zinc-900 text-zinc-200">Draft</option>
+                <option value="APPROVED" className="bg-zinc-900 text-zinc-200">Approved</option>
+                <option value="PAID" className="bg-zinc-900 text-zinc-200">Paid</option>
+              </select>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="bg-zinc-900/30 border-zinc-800">
         <CardContent className="p-0">
           <Table>
-            <TableHeader><TableRow>
-              <TableHead>Number</TableHead><TableHead>Vendor</TableHead>
-              <TableHead>Reference</TableHead><TableHead>Date</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Total</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow></TableHeader>
+            <TableHeader>
+              <TableRow className="border-zinc-800 hover:bg-transparent">
+                <TableHead className="font-semibold text-zinc-200">Bill Number</TableHead>
+                <TableHead className="font-semibold text-zinc-200">Vendor / Supplier</TableHead>
+                <TableHead className="font-semibold text-zinc-200">Invoice Reference</TableHead>
+                <TableHead className="font-semibold text-zinc-200">Bill Date</TableHead>
+                <TableHead className="font-semibold text-zinc-200 text-center">Status</TableHead>
+                <TableHead className="text-right font-semibold text-zinc-200">Total (SAR)</TableHead>
+                <TableHead className="text-right font-semibold text-zinc-200 pr-6">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
             <TableBody>
-              {rows.length === 0 && <TableRow><TableCell colSpan={7} className="text-center text-muted-foreground py-10">No bills yet</TableCell></TableRow>}
-              {rows.map((b) => (
-                <TableRow key={b.id}>
-                  <TableCell className="font-medium">{b.number}</TableCell>
-                  <TableCell className="text-muted-foreground">{b.vendor_name ?? "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">{b.reference ?? "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">{formatDate(b.bill_date)}</TableCell>
-                  <TableCell><StatusBadge status={b.status === "posted" ? "issued" : b.status} /></TableCell>
-                  <TableCell className="text-right font-medium">{formatSAR(b.total)}</TableCell>
-                  <TableCell className="text-right">
-                    <div className="inline-flex gap-2">
-                      {b.status === "draft" && (
-                        <Button size="sm" variant="outline" onClick={async () => { await api.postBill(b.id); reload(); }}>
-                          <Send className="h-3.5 w-3.5" /> Post
-                        </Button>
-                      )}
-                      {b.status === "posted" && (
-                        <Button size="sm" onClick={async () => { await api.payBill(b.id); reload(); }}>
-                          <CheckCircle2 className="h-3.5 w-3.5" /> Mark paid
-                        </Button>
-                      )}
-                    </div>
+              {filteredRows.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center text-zinc-400 py-12">
+                    No supplier bills recorded matching search criteria.
                   </TableCell>
                 </TableRow>
-              ))}
+              ) : (
+                filteredRows.map((b) => {
+                  let statusColor = "text-zinc-400 bg-zinc-900";
+                  if (b.status === "APPROVED") statusColor = "text-amber-300 bg-amber-950/40 border-amber-900/50";
+                  if (b.status === "PAID") statusColor = "text-emerald-300 bg-emerald-950/40 border-emerald-900/50";
+
+                  return (
+                    <TableRow key={b.id} className="border-zinc-800 hover:bg-zinc-900/10">
+                      <TableCell className="font-semibold text-zinc-100">
+                        <div className="flex items-center gap-1.5 text-zinc-200">
+                          <FileText className="h-4 w-4 text-zinc-450" />
+                          <span>{b.number}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-zinc-200 font-semibold">{b.vendor_name || "—"}</TableCell>
+                      <TableCell className="text-zinc-300 font-mono text-xs">{b.vendor_invoice_ref || "—"}</TableCell>
+                      <TableCell className="text-zinc-300">{new Date(b.bill_date).toLocaleDateString()}</TableCell>
+                      <TableCell className="text-center">
+                        <span className={`inline-flex px-2.5 py-0.5 rounded-full border text-xs font-semibold ${statusColor}`}>
+                          {b.status}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-right font-bold text-zinc-100">{formatSAR(b.total)}</TableCell>
+                      <TableCell className="text-right pr-6">
+                        <div className="flex justify-end items-center gap-2">
+                          {b.status === "DRAFT" && (
+                            <>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleApprove(b.id)}
+                                className="border-zinc-800 text-zinc-200 hover:bg-zinc-800"
+                              >
+                                <Send className="h-3.5 w-3.5 mr-1.5 text-indigo-400" /> Approve
+                              </Button>
+                              <Button
+                                asChild
+                                size="icon"
+                                variant="ghost"
+                                className="h-8 w-8 text-zinc-450 hover:text-zinc-100 hover:bg-zinc-800"
+                              >
+                                <Link href={`/purchasing/bills/${b.id}/edit`}>
+                                  <Edit className="h-4 w-4" />
+                                </Link>
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleDelete(b.id)}
+                                className="h-8 w-8 text-zinc-455 hover:text-rose-400 hover:bg-zinc-800"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
+                          )}
+                          {b.status === "APPROVED" && (
+                            <Button
+                              size="sm"
+                              onClick={() => handlePay(b.id)}
+                              className="bg-indigo-600 hover:bg-indigo-700 text-zinc-100"
+                            >
+                              <CheckCircle className="h-3.5 w-3.5 mr-1.5" /> Record Payment
+                            </Button>
+                          )}
+                          {b.status === "PAID" && (
+                            <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                              <CheckCircle className="h-3.5 w-3.5" /> Settled
+                            </span>
+                          )}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
             </TableBody>
           </Table>
         </CardContent>

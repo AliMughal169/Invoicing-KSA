@@ -117,8 +117,41 @@ export const api = {
     request<any>(`/invoicing/customers/${id}/comments`, { method: "POST", body: JSON.stringify({ body }) }),
   customerStatement: (id: string) => request<any[]>(`/invoicing/customers/${id}/statement`),
   listProducts: () => request<any[]>("/invoicing/products"),
-  createProduct: (b: { name: string; priceSar: number; sku?: string; vatRate?: number }) =>
-    request<any>("/invoicing/products", { method: "POST", body: JSON.stringify(b) }),
+  getProduct: (id: string) => request<any>(`/invoicing/products/${id}`),
+  createProduct: (b: {
+    nameEn: string;
+    nameAr: string;
+    sku: string;
+    barcode?: string;
+    imageUrl?: string;
+    unit?: string;
+    costPrice?: number;
+    salesPrice?: number;
+    taxCategory?: string;
+    hsCode?: string;
+    trackInventory?: boolean;
+    qtyOnHand?: number;
+    qtyReserved?: number;
+    reorderLevel?: number;
+    warehouseLocation?: string;
+  }) => request<any>("/invoicing/products", { method: "POST", body: JSON.stringify(b) }),
+  updateProduct: (id: string, b: {
+    nameEn?: string;
+    nameAr?: string;
+    sku?: string;
+    barcode?: string;
+    imageUrl?: string;
+    unit?: string;
+    costPrice?: number;
+    salesPrice?: number;
+    taxCategory?: string;
+    hsCode?: string;
+    trackInventory?: boolean;
+    qtyOnHand?: number;
+    qtyReserved?: number;
+    reorderLevel?: number;
+    warehouseLocation?: string;
+  }) => request<any>(`/invoicing/products/${id}`, { method: "PATCH", body: JSON.stringify(b) }),
   listInvoices: () => request<any[]>("/invoicing/invoices"),
   getInvoice: (id: string) => request<any>(`/invoicing/invoices/${id}`),
   createInvoice: (b: {
@@ -225,21 +258,75 @@ export const api = {
 
   // Purchasing (vendors + bills)
   listVendors: () => request<any[]>("/purchasing/vendors"),
+  getVendor: (id: string) => request<any>(`/purchasing/vendors/${id}`),
+  getVendorBills: (id: string) => request<any[]>(`/purchasing/vendors/${id}/bills`),
   createVendor: (b: {
-    name: string; vatNumber?: string; email?: string; phone?: string;
-    address?: string; city?: string; country?: string;
+    nameEn: string;
+    nameAr: string;
+    vatNumber: string;
+    crNumber?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    paymentTerms?: string;
   }) => request<any>("/purchasing/vendors", { method: "POST", body: JSON.stringify(b) }),
+  updateVendor: (id: string, b: {
+    nameEn?: string;
+    nameAr?: string;
+    vatNumber?: string;
+    crNumber?: string;
+    email?: string;
+    phone?: string;
+    address?: string;
+    paymentTerms?: string;
+  }) => request<any>(`/purchasing/vendors/${id}`, { method: "PATCH", body: JSON.stringify(b) }),
+  deleteVendor: (id: string) => request<any>(`/purchasing/vendors/${id}`, { method: "DELETE" }),
   listBills: () => request<any[]>("/purchasing/bills"),
   getBill: (id: string) => request<any>(`/purchasing/bills/${id}`),
   createBill: (b: {
-    vendorId: string; billDate?: string; dueDate?: string;
-    reference?: string; notes?: string;
-    lines: { description: string; qty: number; unitPrice: number; vatRate?: number; expenseAccountId?: string }[];
+    vendorId: string;
+    billDate?: string;
+    dueDate?: string;
+    vendorInvoiceRef?: string;
+    notes?: string;
+    customFields?: Record<string, any>;
+    lines: {
+      description: string;
+      qty: number;
+      unitPrice: number;
+      vatRate?: number;
+      expenseAccountId?: string;
+      productId?: string;
+    }[];
   }) => request<any>("/purchasing/bills", { method: "POST", body: JSON.stringify(b) }),
+  updateBill: (id: string, b: {
+    vendorId?: string;
+    billDate?: string;
+    dueDate?: string;
+    vendorInvoiceRef?: string;
+    notes?: string;
+    customFields?: Record<string, any>;
+    lines?: {
+      description: string;
+      qty: number;
+      unitPrice: number;
+      vatRate?: number;
+      expenseAccountId?: string;
+      productId?: string;
+    }[];
+  }) => request<any>(`/purchasing/bills/${id}`, { method: "PATCH", body: JSON.stringify(b) }),
+  deleteBill: (id: string) => request<any>(`/purchasing/bills/${id}`, { method: "DELETE" }),
   postBill: (id: string) =>
     request<any>(`/purchasing/bills/${id}/post`, { method: "POST" }),
   payBill: (id: string) =>
     request<any>(`/purchasing/bills/${id}/pay`, { method: "POST" }),
+
+  // Translation Utility
+  translate: (text: string, from = "en", to = "ar") =>
+    request<{ translatedText: string }>("/utility/translate", {
+      method: "POST",
+      body: JSON.stringify({ text, from, to }),
+    }),
 
   // Settings & Custom Fields
   getSettings: () => request<any>("/settings"),
