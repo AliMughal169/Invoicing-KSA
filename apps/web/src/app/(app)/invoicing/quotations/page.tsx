@@ -63,7 +63,17 @@ export default function QuotationsPage() {
   async function handleConvertToInvoice(qId: string) {
     try {
       await api.convertQuotationToInvoice(qId);
-      alert("Quotation converted to invoice successfully!");
+      alert("Quotation converted to tax invoice successfully!");
+      reload();
+    } catch (err: any) {
+      alert("Failed to convert: " + err.message);
+    }
+  }
+
+  async function handleConvertToProforma(qId: string) {
+    try {
+      await api.convertQuotationToProforma(qId);
+      alert("Quotation converted to proforma invoice successfully!");
       reload();
     } catch (err: any) {
       alert("Failed to convert: " + err.message);
@@ -192,7 +202,10 @@ export default function QuotationsPage() {
                       {q.status !== "invoiced" && (
                         <>
                           <Button size="sm" variant="outline" className="text-emerald-500 hover:text-emerald-600 hover:bg-emerald-50/50" onClick={() => handleConvertToInvoice(q.id)}>
-                            <RefreshCw className="h-3.5 w-3.5 mr-1" /> Convert
+                            <RefreshCw className="h-3.5 w-3.5 mr-1" /> To Tax
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={() => handleConvertToProforma(q.id)}>
+                            To Proforma
                           </Button>
                           <Button size="icon" variant="ghost" onClick={() => handleDelete(q.id)} className="text-zinc-400 hover:text-rose-600 hover:bg-rose-50/20">
                             <Trash2 className="h-4 w-4" />

@@ -51,4 +51,9 @@ export class QuotationsController {
   convert(@Param("id") id: string) {
     return this.quotationsService.convertToInvoice(id);
   }
+
+  @Post(":id/convert-proforma")
+  convertProforma(@Param("id") id: string) {
+    return this.quotationsService.convertToProforma(id);
+  }
 }

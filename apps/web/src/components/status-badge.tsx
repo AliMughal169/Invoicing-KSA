@@ -14,6 +14,8 @@ const MAP: Record<string, { label: string; variant: "default" | "success" | "war
   accepted: { label: "Accepted", variant: "success" },
   declined: { label: "Declined", variant: "destructive" },
   invoiced: { label: "Invoiced", variant: "default" },
+  PROFORMA: { label: "Proforma", variant: "default" },
+  proforma: { label: "Proforma", variant: "default" },
 };
 
 export function StatusBadge({ status }: { status: string }) {

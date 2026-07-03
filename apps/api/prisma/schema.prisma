@@ -45,3 +45,28 @@ model TenantMember {
   @@unique([tenantId, userId])
   @@map("tenant_members")
 }
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  PROFORMA
+}
+
+model Invoice {
+  id           String        @id @default(cuid())
+  number       String
+  customerId   String?       @map("customer_id")
+  issueDate    DateTime      @default(now()) @map("issue_date")
+  dueDate      DateTime?     @map("due_date")
+  status       InvoiceStatus @default(DRAFT)
+  subtotal     Decimal       @db.Decimal(14, 2)
+  vatTotal     Decimal       @db.Decimal(14, 2) @map("vat_total")
+  total        Decimal       @db.Decimal(14, 2)
+  isTaxInvoice Boolean       @default(true) @map("is_tax_invoice")
+  customFields Json          @default("{}") @map("custom_fields")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  @@map("invoices")
+}

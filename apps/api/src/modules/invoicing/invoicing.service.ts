@@ -455,11 +455,144 @@ export class InvoicingService {
     return inv;
   }
 
+  async updateCustomerComment(customerId: string, commentId: string, body: string) {
+    if (!body.trim()) throw new BadRequestException("Comment body is required");
+    const res = await this.db.query(
+      `UPDATE "__S__"."customer_comments" SET body=$1 WHERE id=$2 AND customer_id=$3 RETURNING *`,
+      [body, commentId, customerId]
+    );
+    if (!res[0]) throw new NotFoundException("Comment not found");
+    return res[0];
+  }
+
+  async deleteCustomerComment(customerId: string, commentId: string) {
+    const res = await this.db.query(
+      `DELETE FROM "__S__"."customer_comments" WHERE id=$1 AND customer_id=$2 RETURNING *`,
+      [commentId, customerId]
+    );
+    if (!res[0]) throw new NotFoundException("Comment not found");
+    return { ok: true };
+  }
+
+  async createProformaInvoice(input: {
+    customerId?: string;
+    issueDate?: string;
+    dueDate?: string;
+    isTaxInvoice?: boolean;
+    lines: InvoiceLineInput[];
+    customFields?: Record<string, any>;
+  }) {
+    if (!input.lines?.length) throw new BadRequestException("At least one line is required");
+
+    const isTaxInvoice = input.isTaxInvoice !== false;
+    let subtotal = 0, vatTotal = 0;
+    const computed = input.lines.map((l) => {
+      const lineSubtotal = +(l.qty * l.unitPrice).toFixed(2);
+      const vatRate = isTaxInvoice ? (l.vatRate ?? 15) : 0;
+      const lineVat = +(lineSubtotal * (vatRate / 100)).toFixed(2);
+      subtotal += lineSubtotal;
+      vatTotal += lineVat;
+      return { ...l, lineSubtotal, lineVat, vatRate };
+    });
+    const total = +(subtotal + vatTotal).toFixed(2);
+
+    const number = await this.nextProformaNumber();
+
+    const invoice = await this.db.insertReturning<any>(
+      `INSERT INTO "__S__"."invoices"
+       (number, customer_id, issue_date, due_date, status, subtotal, vat_total, total, is_tax_invoice, custom_fields)
+       VALUES ($1,$2, COALESCE($3::date, current_date), $4::date, 'PROFORMA', $5::numeric, $6::numeric, $7::numeric, $8, $9::jsonb)
+       RETURNING *`,
+      [number, input.customerId, input.issueDate ?? null, input.dueDate ?? null,
+       subtotal, vatTotal, total, isTaxInvoice, JSON.stringify(input.customFields || {})],
+    );
+
+    for (const l of computed) {
+      await this.db.exec(
+        `INSERT INTO "__S__"."invoice_lines"
+         (invoice_id, description, qty, unit_price, vat_rate, line_total)
+         VALUES ($1,$2,$3::numeric,$4::numeric,$5::numeric,$6::numeric)`,
+        [invoice.id, l.description, l.qty, l.unitPrice, l.vatRate,
+         l.lineSubtotal + l.lineVat],
+      );
+    }
+    return invoice;
+  }
+
+  async convertQuotationToProforma(quotationId: string) {
+    const rows = await this.db.query<any>(
+      `SELECT * FROM "__S__"."quotations" WHERE id = $1`, [quotationId]);
+    if (!rows[0]) throw new NotFoundException("Quotation not found");
+    const q = rows[0];
+
+    if (q.status === "invoiced") {
+      throw new BadRequestException("Quotation already converted");
+    }
+
+    const lines = await this.db.query<any>(
+      `SELECT * FROM "__S__"."quotation_lines" WHERE quotation_id = $1`, [quotationId]);
+
+    const isTaxInvoice = lines.some((l: any) => Number(l.vat_rate) > 0);
+    const customFields = q.custom_fields ? (typeof q.custom_fields === 'string' ? JSON.parse(q.custom_fields) : q.custom_fields) : {};
+
+    const invoice = await this.createProformaInvoice({
+      customerId: q.customer_id,
+      issueDate: new Date().toISOString().slice(0, 10),
+      dueDate: q.due_date ? new Date(q.due_date).toISOString().slice(0, 10) : undefined,
+      isTaxInvoice,
+      customFields,
+      lines: lines.map((l: any) => ({
+        description: l.description,
+        qty: Number(l.qty),
+        unitPrice: Number(l.unit_price),
+        vatRate: Number(l.vat_rate),
+      })),
+    });
+
+    await this.db.exec(
+      `UPDATE "__S__"."quotations" SET status = 'invoiced', converted_to_invoice_id = $1, updated_at = now() WHERE id = $2`,
+      [invoice.id, quotationId],
+    );
+
+    return invoice;
+  }
+
+  async convertProformaToTaxInvoice(id: string, targetStatus: "draft" | "issued" = "draft") {
+    const inv = await this.getInvoice(id);
+    if (inv.status !== "PROFORMA") {
+      throw new BadRequestException("Invoice is not a proforma invoice");
+    }
+
+    const number = await this.nextNumber();
+
+    await this.db.exec(
+      `UPDATE "__S__"."invoices" SET status = $1, number = $2, updated_at = now() WHERE id = $3`,
+      [targetStatus, number, id]
+    );
+
+    if (targetStatus === "issued") {
+      const tenantId = this.ctx.getTenantId()!;
+      const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+      await this.zatca.signAndChain(id, tenant?.name ?? "Seller", "300000000000003");
+      await this.accounting.postInvoiceIssued(id, Number(inv.subtotal), Number(inv.vat_total));
+    }
+
+    return this.getInvoice(id);
+  }
+
   private async nextNumber(): Promise<string> {
     const rows = await this.db.query<{ c: bigint }>(
-      `SELECT COUNT(*)::bigint AS c FROM "__S__"."invoices"`);
+      `SELECT COUNT(*)::bigint AS c FROM "__S__"."invoices" WHERE status <> 'PROFORMA'`);
     const n = Number(rows[0]?.c ?? 0) + 1;
     const year = new Date().getFullYear();
     return `INV-${year}-${String(n).padStart(5, "0")}`;
+  }
+
+  private async nextProformaNumber(): Promise<string> {
+    const rows = await this.db.query<{ c: bigint }>(
+      `SELECT COUNT(*)::bigint AS c FROM "__S__"."invoices" WHERE status = 'PROFORMA'`);
+    const n = Number(rows[0]?.c ?? 0) + 1;
+    const year = new Date().getFullYear();
+    return `PROF-${year}-${String(n).padStart(5, "0")}`;
   }
 }

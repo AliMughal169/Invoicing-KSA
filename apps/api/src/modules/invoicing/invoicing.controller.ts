@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Param, Post, Res, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Header, Param, Post, Res, UseGuards, Patch, Delete } from "@nestjs/common";
 import { Response } from "express";
 import { JwtAuthGuard } from "../../iam/auth/jwt-auth.guard";
 import { InvoicingService } from "./invoicing.service";
@@ -10,6 +10,7 @@ export class InvoicingController {
 
   @Get("customers") listCustomers() { return this.inv.listCustomers(); }
   @Get("customers/:id") getCustomer(@Param("id") id: string) { return this.inv.getCustomer(id); }
+  
   @Post("customers")
   createCustomer(@Body() b: {
     name: string;
@@ -40,10 +41,9 @@ export class InvoicingController {
     city?: string;
     country?: string;
     customFields?: Record<string, any>;
-  }) {
-    return this.inv.createCustomer(b);
-  }
-  @Post("customers/:id")
+  }) { return this.inv.createCustomer(b); }
+
+  @Patch("customers/:id")
   updateCustomer(@Param("id") id: string, @Body() b: {
     name?: string;
     companyName?: string;
@@ -76,11 +76,25 @@ export class InvoicingController {
   }) {
     return this.inv.updateCustomer(id, b);
   }
-  @Post("customers/:id/delete") deleteCustomer(@Param("id") id: string) { return this.inv.deleteCustomer(id); }
+
+  @Delete("customers/:id")
+  deleteCustomer(@Param("id") id: string) {
+    return this.inv.deleteCustomer(id);
+  }
+
   @Get("customers/:id/comments") customerComments(@Param("id") id: string) { return this.inv.customerComments(id); }
   @Post("customers/:id/comments") addCustomerComment(@Param("id") id: string, @Body() b: { body: string }) {
     return this.inv.addCustomerComment(id, b.body);
   }
+  @Patch("customers/:id/comments/:commentId")
+  updateCustomerComment(@Param("id") id: string, @Param("commentId") commentId: string, @Body() b: { body: string }) {
+    return this.inv.updateCustomerComment(id, commentId, b.body);
+  }
+  @Delete("customers/:id/comments/:commentId")
+  deleteCustomerComment(@Param("id") id: string, @Param("commentId") commentId: string) {
+    return this.inv.deleteCustomerComment(id, commentId);
+  }
+
   @Get("customers/:id/statement") customerStatement(@Param("id") id: string) { return this.inv.customerStatement(id); }
 
   @Get("products") listProducts() { return this.inv.listProducts(); }
@@ -105,6 +119,18 @@ export class InvoicingController {
     lines: { description: string; qty: number; unitPrice: number; vatRate?: number }[];
     customFields?: Record<string, any>;
   }) { return this.inv.createInvoice(b); }
+
+  @Post("invoices/proforma")
+  createProforma(@Body() b: {
+    customerId?: string; issueDate?: string; dueDate?: string; isTaxInvoice?: boolean;
+    lines: { description: string; qty: number; unitPrice: number; vatRate?: number }[];
+    customFields?: Record<string, any>;
+  }) { return this.inv.createProformaInvoice(b); }
+
+  @Post("invoices/:id/convert-proforma")
+  convertProforma(@Param("id") id: string, @Body() b: { status?: "draft" | "issued" }) {
+    return this.inv.convertProformaToTaxInvoice(id, b.status);
+  }
 
   @Post("invoices/:id/issue")
   issue(@Param("id") id: string) { return this.inv.issueInvoice(id); }

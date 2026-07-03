@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Send, CheckCircle2, FileText } from "lucide-react";
+import { Plus, Send, CheckCircle2, FileText, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { api } from "@/lib/api";
 import { formatSAR, formatDate } from "@/lib/utils";
@@ -66,10 +66,11 @@ export default function InvoicesPage() {
     const drafts = rows.filter((r) => r.status === "draft").length;
     const issued = rows.filter((r) => r.status === "issued").length;
     const paid = rows.filter((r) => r.status === "paid").length;
+    const proformas = rows.filter((r) => r.status === "PROFORMA").length;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const overdue = rows.filter((r) => r.status !== "paid" && r.due_date && new Date(r.due_date) < today).length;
-    return { total, drafts, issued, paid, overdue };
+    const overdue = rows.filter((r) => r.status !== "paid" && r.status !== "PROFORMA" && r.due_date && new Date(r.due_date) < today).length;
+    return { total, drafts, issued, paid, proformas, overdue };
   }, [rows]);
 
   return (
@@ -78,22 +79,37 @@ export default function InvoicesPage() {
         title="Invoices" 
         description="Manage and issue sales tax invoices for customers"
         actions={
-          <Button asChild>
-            <Link href="/invoicing/invoices/new">
-              <Plus className="h-4 w-4 mr-2" /> Create Invoice
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline">
+              <Link href="/invoicing/proforma/new">
+                <Plus className="h-4 w-4 mr-2" /> New Proforma
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/invoicing/invoices/new">
+                <Plus className="h-4 w-4 mr-2" /> Create Invoice
+              </Link>
+            </Button>
+          </div>
         }
       />
 
       <Card className="mb-6">
         <CardContent className="p-4">
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-4">
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5 mb-4">
             <Card>
               <CardContent className="p-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Total Invoices</p>
                   <p className="text-2xl font-bold">{stats.total}</p>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="p-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Proforma</p>
+                  <p className="text-2xl font-bold text-indigo-600">{stats.proformas}</p>
                 </div>
               </CardContent>
             </Card>
@@ -138,6 +154,7 @@ export default function InvoicesPage() {
                   className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
                 >
                   <option value="all">All Statuses</option>
+                  <option value="PROFORMA">Proforma</option>
                   <option value="draft">Draft</option>
                   <option value="issued">Issued</option>
                   <option value="paid">Paid</option>
@@ -178,7 +195,7 @@ export default function InvoicesPage() {
               {filteredRows.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground py-10">
-                    No invoices found. Click "Create Invoice" to issue a new one.
+                    No invoices found. Click "Create Invoice" or "New Proforma" to issue a new one.
                   </TableCell>
                 </TableRow>
               )}
@@ -205,6 +222,24 @@ export default function InvoicesPage() {
                       {inv.status === "issued" && (
                         <Button size="sm" onClick={async () => { await api.payInvoice(inv.id); reload(); }}>
                           <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> Mark Paid
+                        </Button>
+                      )}
+                      {inv.status === "PROFORMA" && (
+                        <Button 
+                          size="sm" 
+                          variant="outline" 
+                          onClick={async () => { 
+                            if (confirm("Are you sure you want to convert this proforma invoice to a signed Tax Invoice?")) {
+                              try {
+                                await api.convertProformaToTaxInvoice(inv.id, { status: "issued" }); 
+                                reload();
+                              } catch (err: any) {
+                                alert("Failed to convert: " + err.message);
+                              }
+                            }
+                          }}
+                        >
+                          <RefreshCw className="h-3.5 w-3.5 mr-1" /> Convert
                         </Button>
                       )}
                     </div>

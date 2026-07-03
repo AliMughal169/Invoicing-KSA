@@ -189,6 +189,11 @@ export class QuotationsService {
     return { ok: true, invoiceId: invoice.id };
   }
 
+  async convertToProforma(id: string) {
+    const invoice = await this.invoicingService.convertQuotationToProforma(id);
+    return { ok: true, invoiceId: invoice.id };
+  }
+
   async deleteQuotation(id: string) {
     const rows = await this.db.query<any>(
       `SELECT * FROM "__S__"."quotations" WHERE id = $1`, [id]);

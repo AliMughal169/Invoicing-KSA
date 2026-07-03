@@ -128,6 +128,15 @@ export const api = {
     isTaxInvoice?: boolean;
     customFields?: Record<string, any>;
   }) => request<any>("/invoicing/invoices", { method: "POST", body: JSON.stringify(b) }),
+  createProformaInvoice: (b: {
+    customerId?: string;
+    lines: { description: string; qty: number; unitPrice: number; vatRate?: number }[];
+    dueDate?: string;
+    isTaxInvoice?: boolean;
+    customFields?: Record<string, any>;
+  }) => request<any>("/invoicing/invoices/proforma", { method: "POST", body: JSON.stringify(b) }),
+  convertProformaToTaxInvoice: (id: string, b: { status?: "draft" | "issued" }) =>
+    request<any>(`/invoicing/invoices/${id}/convert-proforma`, { method: "POST", body: JSON.stringify(b) }),
   issueInvoice: (id: string) =>
     request<any>(`/invoicing/invoices/${id}/issue`, { method: "POST" }),
   payInvoice: (id: string) =>
@@ -155,6 +164,19 @@ export const api = {
     request<any>(`/invoicing/quotations/${id}/delete`, { method: "POST" }),
   convertQuotationToInvoice: (id: string) =>
     request<any>(`/invoicing/quotations/${id}/convert`, { method: "POST" }),
+  convertQuotationToProforma: (id: string) =>
+    request<any>(`/invoicing/quotations/${id}/convert-proforma`, { method: "POST" }),
+
+  // Comments CRUD
+  updateCustomerComment: (customerId: string, commentId: string, body: string) =>
+    request<any>(`/invoicing/customers/${customerId}/comments/${commentId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ body }),
+    }),
+  deleteCustomerComment: (customerId: string, commentId: string) =>
+    request<any>(`/invoicing/customers/${customerId}/comments/${commentId}`, {
+      method: "DELETE",
+    }),
 
   // Tasks & Due Date Tracking
   listTasks: () => request<any[]>("/tasks"),
