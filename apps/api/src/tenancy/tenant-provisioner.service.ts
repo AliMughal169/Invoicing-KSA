@@ -169,6 +169,10 @@ export class TenantProvisionerService implements OnModuleInit {
     }
 
     try {
+      await q(`ALTER TABLE "__S__"."products" ALTER COLUMN name DROP NOT NULL`);
+    } catch {}
+
+    try {
       await q(`UPDATE "__S__"."products" SET name_en = name WHERE (name_en = '' OR name_en IS NULL) AND name IS NOT NULL AND name <> ''`);
       await q(`UPDATE "__S__"."products" SET sales_price = price_sar WHERE sales_price = 0 AND price_sar IS NOT NULL AND price_sar <> 0`);
       await q(`CREATE UNIQUE INDEX IF NOT EXISTS products_sku_idx ON "__S__"."products" (sku) WHERE sku IS NOT NULL AND sku <> ''`);
@@ -199,6 +203,7 @@ export class TenantProvisionerService implements OnModuleInit {
       zatca_qr text,
       zatca_xml text,
       zatca_signed_at timestamptz,
+      updated_at timestamptz DEFAULT now(),
       created_at timestamptz DEFAULT now())`);
     // Backfill ZATCA columns for tenants provisioned before this column set.
     for (const col of [
@@ -209,6 +214,7 @@ export class TenantProvisionerService implements OnModuleInit {
       "zatca_qr text",
       "zatca_xml text",
       "zatca_signed_at timestamptz",
+      "updated_at timestamptz DEFAULT now()",
     ]) {
       await q(`ALTER TABLE "__S__"."invoices" ADD COLUMN IF NOT EXISTS ${col}`);
     }

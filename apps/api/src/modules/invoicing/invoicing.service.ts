@@ -538,6 +538,14 @@ export class InvoicingService {
         [invoice.id, l.productId || null, l.description, l.qty, l.unitPrice, l.vatRate,
          l.lineSubtotal + l.lineVat],
       );
+      if (l.productId) {
+        await this.db.exec(
+          `UPDATE "__S__"."products"
+           SET qty_reserved = qty_reserved + $1
+           WHERE id = $2 AND track_inventory = true`,
+          [l.qty, l.productId]
+        );
+      }
     }
     return invoice;
   }
@@ -547,12 +555,54 @@ export class InvoicingService {
     if (inv.status === "issued" || inv.status === "paid") {
       throw new BadRequestException(`Invoice already ${inv.status}`);
     }
-    // ZATCA: build UBL, hash-chain, sign, generate QR.
+
+    const schema = this.ctx.getSchema()!;
+    await this.prisma.$transaction(async (tx) => {
+      const query = async <T = any>(sql: string, params: any[] = []) => {
+        return tx.$queryRawUnsafe<T[]>(sql.replace(/__S__/g, schema), ...params);
+      };
+      const exec = async (sql: string, params: any[] = []) => {
+        return tx.$executeRawUnsafe(sql.replace(/__S__/g, schema), ...params);
+      };
+
+      const lines = await query(`SELECT * FROM "__S__"."invoice_lines" WHERE invoice_id = $1`, [id]);
+
+      for (const l of lines) {
+        if (l.product_id) {
+          const pRows = await query(`SELECT * FROM "__S__"."products" WHERE id = $1`, [l.product_id]);
+          if (pRows[0]) {
+            const prod = pRows[0];
+            const qty = Number(l.qty);
+            if (prod.track_inventory) {
+              const newQtyOnHand = Number(prod.qty_on_hand) - qty;
+              if (newQtyOnHand < 0) {
+                throw new BadRequestException(`Insufficient stock for product ${prod.name_en}`);
+              }
+              // Deduct qty_on_hand, and release qty_reserved
+              await exec(
+                `UPDATE "__S__"."products" 
+                 SET qty_on_hand = qty_on_hand - $1,
+                     qty_reserved = qty_reserved - $1
+                 WHERE id = $2`,
+                [qty, l.product_id]
+              );
+              // Log stock movement
+              await exec(
+                `INSERT INTO "__S__"."stock_movements" (product_id, quantity, type, reference_id)
+                 VALUES ($1, $2::numeric, 'SALE', $3)`,
+                [l.product_id, -qty, id]
+              );
+            }
+          }
+        }
+      }
+
+      await exec(`UPDATE "__S__"."invoices" SET status = 'issued', updated_at = now() WHERE id = $1`, [id]);
+    });
+
     const tenantId = this.ctx.getTenantId()!;
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     await this.zatca.signAndChain(id, tenant?.name ?? "Seller", "300000000000003");
-
-    await this.db.exec(`UPDATE "__S__"."invoices" SET status='issued' WHERE id=$1`, [id]);
     await this.accounting.postInvoiceIssued(id, Number(inv.subtotal), Number(inv.vat_total));
     return this.getInvoice(id);
   }
@@ -624,6 +674,14 @@ export class InvoicingService {
         [invoice.id, l.productId || null, l.description, l.qty, l.unitPrice, l.vatRate,
          l.lineSubtotal + l.lineVat],
       );
+      if (l.productId) {
+        await this.db.exec(
+          `UPDATE "__S__"."products"
+           SET qty_reserved = qty_reserved + $1
+           WHERE id = $2 AND track_inventory = true`,
+          [l.qty, l.productId]
+        );
+      }
     }
     return invoice;
   }
@@ -659,15 +717,6 @@ export class InvoicingService {
       })),
     });
 
-    for (const l of lines) {
-      if (l.product_id) {
-        await this.db.exec(
-          `UPDATE "__S__"."products" SET qty_reserved = qty_reserved + $1 WHERE id = $2`,
-          [Number(l.qty), l.product_id]
-        );
-      }
-    }
-
     await this.db.exec(
       `UPDATE "__S__"."quotations" SET status = 'invoiced', converted_to_invoice_id = $1, updated_at = now() WHERE id = $2`,
       [invoice.id, quotationId],
@@ -696,37 +745,44 @@ export class InvoicingService {
 
       const lines = await query(`SELECT * FROM "__S__"."invoice_lines" WHERE invoice_id = $1`, [id]);
 
-      for (const l of lines) {
-        if (l.product_id) {
-          const pRows = await query(`SELECT * FROM "__S__"."products" WHERE id = $1`, [l.product_id]);
-          if (pRows[0]) {
-            const prod = pRows[0];
-            const qty = Number(l.qty);
-            if (prod.track_inventory) {
-              const newQtyOnHand = Number(prod.qty_on_hand) - qty;
-              if (newQtyOnHand < 0) {
-                throw new BadRequestException(`Insufficient stock for product ${prod.name_en}`);
+      if (targetStatus === "issued") {
+        for (const l of lines) {
+          if (l.product_id) {
+            const pRows = await query(`SELECT * FROM "__S__"."products" WHERE id = $1`, [l.product_id]);
+            if (pRows[0]) {
+              const prod = pRows[0];
+              const qty = Number(l.qty);
+              if (prod.track_inventory) {
+                const newQtyOnHand = Number(prod.qty_on_hand) - qty;
+                if (newQtyOnHand < 0) {
+                  throw new BadRequestException(`Insufficient stock for product ${prod.name_en}`);
+                }
               }
+              await exec(
+                `UPDATE "__S__"."products" 
+                 SET qty_on_hand = CASE WHEN track_inventory THEN qty_on_hand - $1 ELSE qty_on_hand END,
+                     qty_reserved = qty_reserved - $1
+                 WHERE id = $2`,
+                [qty, l.product_id]
+              );
+              await exec(
+                `INSERT INTO "__S__"."stock_movements" (product_id, quantity, type, reference_id)
+                 VALUES ($1, $2::numeric, 'SALE', $3)`,
+                [l.product_id, -qty, id]
+              );
             }
-            await exec(
-              `UPDATE "__S__"."products" 
-               SET qty_on_hand = CASE WHEN track_inventory THEN qty_on_hand - $1 ELSE qty_on_hand END,
-                   qty_reserved = qty_reserved - $1
-               WHERE id = $2`,
-              [qty, l.product_id]
-            );
-            await exec(
-              `INSERT INTO "__S__"."stock_movements" (product_id, quantity, type, reference_id)
-               VALUES ($1, $2::numeric, 'SALE', $3)`,
-              [l.product_id, -qty, id]
-            );
           }
         }
       }
 
+      const customFields = inv.custom_fields ? (typeof inv.custom_fields === 'string' ? JSON.parse(inv.custom_fields) : inv.custom_fields) : {};
+      customFields.wasProforma = true;
+
       await exec(
-        `UPDATE "__S__"."invoices" SET status = $1, number = $2, updated_at = now() WHERE id = $3`,
-        [targetStatus, number, id]
+        `UPDATE "__S__"."invoices" 
+         SET status = $1, number = $2, custom_fields = $3::jsonb, updated_at = now() 
+         WHERE id = $4`,
+        [targetStatus, number, JSON.stringify(customFields), id]
       );
     });
 

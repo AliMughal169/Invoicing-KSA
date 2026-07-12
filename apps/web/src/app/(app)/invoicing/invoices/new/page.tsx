@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, ArrowLeft, Save, ShieldAlert, Check } from "lucide-react";
 import Link from "next/link";
@@ -61,17 +61,34 @@ export default function NewInvoicePage() {
   const [customFields, setCustomFields] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
 
+  const customerRef = useRef<HTMLDivElement>(null);
+  const productRef = useRef<HTMLTableCellElement>(null);
+
   // Load configuration
   useEffect(() => {
-    Promise.all([
-      api.listCustomers(),
-      api.listProducts(),
-      api.listCustomFields("invoice"),
-    ]).then(([cus, prod, cfs]) => {
-      setCustomers(cus);
-      setProducts(prod);
-      setCfDefinitions(cfs);
-    }).catch(() => {});
+    api.listCustomers().then(setCustomers).catch((err) => console.error("Error loading customers", err));
+    api.listProducts().then(setProducts).catch((err) => console.error("Error loading products", err));
+    api.listCustomFields("invoice").then(setCfDefinitions).catch((err) => console.error("Error loading custom fields", err));
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (customerRef.current && !customerRef.current.contains(event.target as Node)) {
+        setShowCustomerDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (productRef.current && !productRef.current.contains(event.target as Node)) {
+        setActiveLineIdx(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   // Compute selected customer object
@@ -188,9 +205,9 @@ export default function NewInvoicePage() {
     try {
       // Calculate effective unit price including discount to fit database schema totals perfectly
       const finalLines = computedLines.map((l) => ({
+        productId: l.productId || undefined,
         description: `${l.description}${l.unit !== "Pcs" ? ` (Unit: ${l.unit})` : ""}`,
         qty: Number(l.qty) || 1,
-        // Backend expects base unit price, and computes vat on it. We pass effective unit price to match exact totals
         unitPrice: Number(l.taxable / (l.qty || 1)),
         vatRate: Number(l.vatRate),
       }));
@@ -287,7 +304,7 @@ export default function NewInvoicePage() {
           <CardContent>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               {/* Customer Selector */}
-              <div className="space-y-2 relative">
+              <div className="space-y-2 relative" ref={customerRef}>
                 <Label className="text-xs font-bold uppercase tracking-wider text-zinc-500">
                   Customer {!isSimplified && <span className="text-rose-500">*</span>}
                 </Label>
@@ -373,7 +390,7 @@ export default function NewInvoicePage() {
             <CardDescription>Line items breakdown, unit measurements, discounts, and VAT rates</CardDescription>
           </CardHeader>
           <CardContent className="p-0 sm:p-6 overflow-visible">
-            <div className="overflow-x-auto overflow-visible">
+            <div className="overflow-x-auto overflow-visible pb-32">
               <table className="w-full text-sm border-collapse min-w-[900px] overflow-visible">
                 <thead>
                   <tr className="bg-zinc-50 text-zinc-500 text-xs font-bold uppercase tracking-wider border-b">
@@ -391,7 +408,7 @@ export default function NewInvoicePage() {
                   {lines.map((l, i) => (
                     <tr key={i} className="hover:bg-zinc-50/50 transition-colors overflow-visible">
                       {/* Product Autocomplete & Description */}
-                      <td className="p-3 relative overflow-visible">
+                      <td className="p-3 relative overflow-visible" ref={activeLineIdx === i ? productRef : undefined}>
                         <Input
                           placeholder="Type product name/service..."
                           value={activeLineIdx === i ? productSearch : l.description}
@@ -402,10 +419,10 @@ export default function NewInvoicePage() {
                           }}
                           onFocus={() => {
                             setActiveLineIdx(i);
-                            setProductSearch(l.description);
+                            setProductSearch(l.description || "");
                           }}
                         />
-                        {activeLineIdx === i && productSearch.length > 0 && (
+                        {activeLineIdx === i && (
                           <div className="absolute top-full left-3 right-3 bg-white border border-zinc-200 rounded-md shadow-lg z-20 max-h-48 overflow-y-auto mt-1">
                             {filteredProducts.length === 0 ? (
                               <div className="p-2 text-xs text-muted-foreground text-center">No products found</div>

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2, ArrowLeft, Save, ShieldAlert, Check } from "lucide-react";
 import Link from "next/link";
@@ -61,17 +61,34 @@ export default function NewProformaPage() {
   const [customFields, setCustomFields] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
 
+  const customerRef = useRef<HTMLDivElement>(null);
+  const productRef = useRef<HTMLTableCellElement>(null);
+
   // Load configuration
   useEffect(() => {
-    Promise.all([
-      api.listCustomers(),
-      api.listProducts(),
-      api.listCustomFields("invoice"),
-    ]).then(([cus, prod, cfs]) => {
-      setCustomers(cus);
-      setProducts(prod);
-      setCfDefinitions(cfs);
-    }).catch(() => {});
+    api.listCustomers().then(setCustomers).catch((err) => console.error("Error loading customers", err));
+    api.listProducts().then(setProducts).catch((err) => console.error("Error loading products", err));
+    api.listCustomFields("invoice").then(setCfDefinitions).catch((err) => console.error("Error loading custom fields", err));
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (customerRef.current && !customerRef.current.contains(event.target as Node)) {
+        setShowCustomerDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (productRef.current && !productRef.current.contains(event.target as Node)) {
+        setActiveLineIdx(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   // Compute selected customer object
@@ -187,6 +204,7 @@ export default function NewProformaPage() {
     setSaving(true);
     try {
       const finalLines = computedLines.map((l) => ({
+        productId: l.productId || undefined,
         description: `${l.description}${l.unit !== "Pcs" ? ` (Unit: ${l.unit})` : ""}`,
         qty: Number(l.qty) || 1,
         unitPrice: Number(l.taxable / (l.qty || 1)),
@@ -277,7 +295,7 @@ export default function NewProformaPage() {
           <CardContent>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
               {/* Customer Selector */}
-              <div className="space-y-2 relative">
+              <div className="space-y-2 relative" ref={customerRef}>
                 <Label className="text-xs font-bold uppercase tracking-wider text-zinc-500">
                   Customer {!isSimplified && <span className="text-rose-500">*</span>}
                 </Label>
@@ -360,9 +378,9 @@ export default function NewProformaPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-bold text-zinc-850">Spreadsheet Line Items</CardTitle>
           </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse min-w-[900px]">
+          <CardContent className="p-0 overflow-visible">
+            <div className="overflow-x-auto overflow-visible pb-32">
+              <table className="w-full text-sm border-collapse min-w-[900px] overflow-visible">
                 <thead>
                   <tr className="bg-zinc-50 border-y text-zinc-650 text-xs font-bold uppercase tracking-wider">
                     <th className="p-3 text-left w-10">#</th>
@@ -380,7 +398,7 @@ export default function NewProformaPage() {
                   {lines.map((item, i) => (
                     <tr key={i} className="hover:bg-zinc-50/50">
                       <td className="p-3 text-center font-semibold text-zinc-400">{i + 1}</td>
-                      <td className="p-3 relative">
+                      <td className="p-3 relative overflow-visible" ref={activeLineIdx === i ? productRef : undefined}>
                         <Input
                           placeholder="Type or select product..."
                           value={activeLineIdx === i ? productSearch : item.description}
@@ -391,7 +409,7 @@ export default function NewProformaPage() {
                           }}
                           onFocus={() => {
                             setActiveLineIdx(i);
-                            setProductSearch(item.description);
+                            setProductSearch(item.description || "");
                           }}
                           className="h-9"
                         />

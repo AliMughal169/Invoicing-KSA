@@ -3,6 +3,7 @@ import { TenantDb } from "../../core/database/tenant-db.service";
 import { InvoicingService } from "../invoicing/invoicing.service";
 
 interface QuotationLineInput {
+  productId?: string;
   description: string;
   qty: number;
   unitPrice: number;
@@ -76,10 +77,10 @@ export class QuotationsService {
     for (const l of computed) {
       await this.db.exec(
         `INSERT INTO "__S__"."quotation_lines"
-         (quotation_id, description, qty, unit_price, vat_rate, line_total)
-         VALUES ($1,$2,$3::numeric,$4::numeric,$5::numeric,$6::numeric)`,
+         (quotation_id, description, qty, unit_price, vat_rate, line_total, product_id)
+         VALUES ($1,$2,$3::numeric,$4::numeric,$5::numeric,$6::numeric,$7)`,
         [quotation.id, l.description, l.qty, l.unitPrice, l.vatRate,
-         l.lineSubtotal + l.lineVat],
+         l.lineSubtotal + l.lineVat, l.productId || null],
       );
     }
     return quotation;
