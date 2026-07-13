@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Param, Post, Res, UseGuards, Patch, Delete } from "@nestjs/common";
+import { Body, Controller, Get, Header, Param, Post, Res, UseGuards, Patch, Delete, Query } from "@nestjs/common";
 import { Response } from "express";
 import { JwtAuthGuard } from "../../iam/auth/jwt-auth.guard";
 import { InvoicingService } from "./invoicing.service";
@@ -111,7 +111,7 @@ export class InvoicingController {
     return this.inv.updateProduct(id, b);
   }
 
-  @Get("invoices") list() { return this.inv.listInvoices(); }
+  @Get("invoices") list(@Query("type") type?: string) { return this.inv.listInvoices(type); }
   @Get("invoices/:id") get(@Param("id") id: string) { return this.inv.getInvoice(id); }
 
   @Get("invoices/:id/xml")
@@ -143,6 +143,19 @@ export class InvoicingController {
   @Post("invoices/:id/issue")
   issue(@Param("id") id: string) { return this.inv.issueInvoice(id); }
 
+  @Post("invoices/:id/approve")
+  approve(@Param("id") id: string) { return this.inv.issueInvoice(id); }
+
   @Post("invoices/:id/pay")
   pay(@Param("id") id: string) { return this.inv.markPaid(id); }
+
+  @Post("corrections")
+  createCorrection(@Body() b: {
+    parentInvoiceId: string;
+    type: 'CREDIT_NOTE' | 'DEBIT_NOTE';
+    lines?: any[];
+    customFields?: Record<string, any>;
+  }) {
+    return this.inv.createCorrectionDocument(b.parentInvoiceId, b.type, b);
+  }
 }

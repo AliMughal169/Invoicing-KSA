@@ -30,6 +30,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: "/crm/contacts", label: t("contacts"), icon: Users },
     { href: "/crm/pipeline", label: t("pipeline"), icon: TrendingUp },
     { href: "/invoicing/invoices", label: t("invoices"), icon: FileText },
+    { href: "/invoicing/credit-notes", label: t("creditNotes"), icon: FileText },
+    { href: "/invoicing/debit-notes", label: t("debitNotes"), icon: FileText },
     { href: "/invoicing/quotations", label: t("quotations"), icon: FileText },
     { href: "/invoicing/customers", label: t("customers"), icon: Building2 },
     { href: "/invoicing/products", label: t("products"), icon: Package },

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { PageHeader, PageShell } from "@/components/page-shell";
 
-export default function GLPage() {
+function LedgerContent() {
   const { accountId } = useParams<{ accountId: string }>();
   const params = useSearchParams();
   const [data, setData] = useState<any>(null);
@@ -59,5 +59,13 @@ export default function GLPage() {
         </CardContent>
       </Card>
     </PageShell>
+  );
+}
+
+export default function GLPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-zinc-500">Loading general ledger...</div>}>
+      <LedgerContent />
+    </Suspense>
   );
 }

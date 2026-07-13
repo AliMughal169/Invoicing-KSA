@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import QRCode from "qrcode";
 import { Printer, ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -13,11 +13,26 @@ import { useI18n } from "@/lib/i18n";
 
 export default function InvoicePdfPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [inv, setInv] = useState<any>(null);
   const [tenant, setTenant] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
   const [qr, setQr] = useState<string>("");
   const { locale } = useI18n();
+
+  const handleApproveAdjustment = async () => {
+    if (confirm("Are you sure you want to approve and issue this note?")) {
+      try {
+        await api.approveInvoice(id);
+        alert("Note approved and issued successfully!");
+        router.refresh();
+        const updated = await api.getInvoice(id);
+        setInv(updated);
+      } catch (err: any) {
+        alert("Failed to approve note: " + err.message);
+      }
+    }
+  };
 
   // Layout states
   const [printOnLetterhead, setPrintOnLetterhead] = useState(false);
@@ -112,13 +127,34 @@ export default function InvoicePdfPage() {
 
         {/* Layout Control Bar */}
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6 p-4 bg-white rounded-xl shadow-sm border print:hidden no-print">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <Button asChild variant="outline" size="sm">
-              <Link href="/invoicing/invoices"><ArrowLeft className="h-4 w-4 mr-1" /> Back</Link>
+              <Link href={inv.original_invoice_id ? `/invoicing/invoices/${inv.original_invoice_id}` : "/invoicing/invoices"}>
+                <ArrowLeft className="h-4 w-4 mr-1" /> Back
+              </Link>
             </Button>
-            <Button onClick={() => window.print()} size="sm">
+            <Button onClick={() => window.print()} size="sm" variant="outline">
               <Printer className="h-4 w-4 mr-1" /> Print / Save PDF
             </Button>
+            {(inv.status === "issued" || inv.status === "paid") && (!inv.document_type || inv.document_type === "INVOICE") && (
+              <>
+                <Button asChild variant="destructive" size="sm">
+                  <Link href={`/invoicing/invoices/${inv.id}/correction?type=CREDIT_NOTE`}>
+                    Issue Credit Note (Sales Return)
+                  </Link>
+                </Button>
+                <Button asChild size="sm" className="bg-indigo-600 hover:bg-indigo-700 text-zinc-100">
+                  <Link href={`/invoicing/invoices/${inv.id}/correction?type=DEBIT_NOTE`}>
+                    Issue Debit Note
+                  </Link>
+                </Button>
+              </>
+            )}
+            {inv.status?.toLowerCase() === "draft" && (inv.document_type === "CREDIT_NOTE" || inv.document_type === "DEBIT_NOTE") && (
+              <Button className="bg-green-700 hover:bg-green-800 text-white font-bold" size="sm" onClick={handleApproveAdjustment}>
+                Approve & Issue Note
+              </Button>
+            )}
           </div>
           
           <div className="flex items-center gap-6">
@@ -239,10 +275,26 @@ export default function InvoicePdfPage() {
                       <div className="text-right">
                         <div className="bg-zinc-100 rounded-lg p-3 inline-block text-right mb-2">
                           <span className="block text-lg font-black text-zinc-850 uppercase tracking-wider">
-                            {inv.status === "PROFORMA" ? "Proforma Invoice" : (inv.is_tax_invoice ? "Tax Invoice" : "Simplified Invoice")}
+                            {inv.document_type === "CREDIT_NOTE"
+                              ? "Credit Note"
+                              : inv.document_type === "DEBIT_NOTE"
+                              ? "Debit Note"
+                              : inv.status === "PROFORMA"
+                              ? "Proforma Invoice"
+                              : inv.is_tax_invoice
+                              ? "Tax Invoice"
+                              : "Simplified Invoice"}
                           </span>
                           <span className="block text-sm font-bold text-zinc-700 tracking-wide dir-rtl mt-0.5">
-                            {inv.status === "PROFORMA" ? "فاتورة صورية" : (inv.is_tax_invoice ? "فاتورة ضريبية" : "فاتورة مبسطة")}
+                            {inv.document_type === "CREDIT_NOTE"
+                              ? "إشعار دائن"
+                              : inv.document_type === "DEBIT_NOTE"
+                              ? "إشعار مدين"
+                              : inv.status === "PROFORMA"
+                              ? "فاتورة صورية"
+                              : inv.is_tax_invoice
+                              ? "فاتورة ضريبية"
+                              : "فاتورة مبسطة"}
                           </span>
                         </div>
                         <h2 className="text-4xl font-black text-zinc-900 mt-1">{inv.number}</h2>
@@ -255,10 +307,26 @@ export default function InvoicePdfPage() {
                     <div className="flex justify-between items-start pb-6 border-b-2 border-zinc-200">
                       <div>
                         <span className="block text-2xl font-black text-zinc-800 uppercase tracking-wider">
-                          {inv.status === "PROFORMA" ? "Proforma Invoice" : (inv.is_tax_invoice ? "Tax Invoice" : "Simplified Invoice")}
+                          {inv.document_type === "CREDIT_NOTE"
+                            ? "Credit Note"
+                            : inv.document_type === "DEBIT_NOTE"
+                            ? "Debit Note"
+                            : inv.status === "PROFORMA"
+                            ? "Proforma Invoice"
+                            : inv.is_tax_invoice
+                            ? "Tax Invoice"
+                            : "Simplified Invoice"}
                         </span>
                         <span className="block text-lg font-bold text-zinc-600 tracking-wide dir-rtl mt-0.5">
-                          {inv.status === "PROFORMA" ? "فاتورة صورية" : (inv.is_tax_invoice ? "فاتورة ضريبية" : "فاتورة مبسطة")}
+                          {inv.document_type === "CREDIT_NOTE"
+                            ? "إشعار دائن"
+                            : inv.document_type === "DEBIT_NOTE"
+                            ? "إشعار مدين"
+                            : inv.status === "PROFORMA"
+                            ? "فاتورة صورية"
+                            : inv.is_tax_invoice
+                            ? "فاتورة ضريبية"
+                            : "فاتورة مبسطة"}
                         </span>
                       </div>
                       <div className="text-right">

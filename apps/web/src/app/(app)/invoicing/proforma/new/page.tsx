@@ -50,7 +50,6 @@ export default function NewProformaPage() {
   const [issueDate, setIssueDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [supplyDate, setSupplyDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [paymentTerms, setPaymentTerms] = useState("Net 30");
-  const [bankDetails, setBankDetails] = useState("Saudi National Bank (SNB)");
 
   // Lines
   const [lines, setLines] = useState<LineItem[]>([{ ...EMPTY_LINE }]);
@@ -222,7 +221,6 @@ export default function NewProformaPage() {
           invoice_type: isSimplified ? "simplified" : "standard",
           supply_date: supplyDate,
           payment_terms: paymentTerms,
-          bank_details: bankDetails,
           total_discount: financialSummary.totalDiscount,
         },
       };
@@ -568,18 +566,6 @@ export default function NewProformaPage() {
                   </div>
                 )}
 
-                <div className="space-y-1">
-                  <Label className="text-xs font-bold text-zinc-500">Deposit Bank Details</Label>
-                  <select
-                    value={bankDetails}
-                    onChange={(e) => setBankDetails(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="Saudi National Bank (SNB)">Saudi National Bank (SNB) - Main Corporate A/C</option>
-                    <option value="Al Rajhi Bank">Al Rajhi Bank - Corporate SAR A/C</option>
-                    <option value="Riyad Bank">Riyad Bank - VAT Settlement A/C</option>
-                  </select>
-                </div>
               </CardContent>
             </Card>
           </div>

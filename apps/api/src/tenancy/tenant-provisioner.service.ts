@@ -197,6 +197,8 @@ export class TenantProvisionerService implements OnModuleInit {
       total numeric(14,2) NOT NULL DEFAULT 0,
       currency text NOT NULL DEFAULT 'SAR',
       is_tax_invoice boolean NOT NULL DEFAULT true,
+      document_type text NOT NULL DEFAULT 'INVOICE',
+      original_invoice_id text REFERENCES "__S__"."invoices"(id) ON DELETE SET NULL,
       zatca_uuid text,
       zatca_hash text,
       zatca_prev_hash text,
@@ -215,6 +217,8 @@ export class TenantProvisionerService implements OnModuleInit {
       "zatca_xml text",
       "zatca_signed_at timestamptz",
       "updated_at timestamptz DEFAULT now()",
+      "document_type text NOT NULL DEFAULT 'INVOICE'",
+      "original_invoice_id text REFERENCES \"__S__\".\"invoices\"(id) ON DELETE SET NULL",
     ]) {
       await q(`ALTER TABLE "__S__"."invoices" ADD COLUMN IF NOT EXISTS ${col}`);
     }
@@ -396,6 +400,13 @@ export class TenantProvisionerService implements OnModuleInit {
     await q(`ALTER TABLE "__S__"."invoices" ADD COLUMN IF NOT EXISTS custom_fields jsonb DEFAULT '{}'::jsonb`);
     await q(`ALTER TABLE "__S__"."quotations" ADD COLUMN IF NOT EXISTS custom_fields jsonb DEFAULT '{}'::jsonb`);
     await q(`ALTER TABLE "__S__"."customers" ADD COLUMN IF NOT EXISTS custom_fields jsonb DEFAULT '{}'::jsonb`);
+
+    await q(`CREATE TABLE IF NOT EXISTS "__S__"."note_templates" (
+      id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      title text NOT NULL,
+      content text NOT NULL,
+      is_default boolean NOT NULL DEFAULT false,
+      created_at timestamptz DEFAULT now())`);
 
     await q(`INSERT INTO "__S__"."_meta" (key, value) VALUES ('provisioned_at', now()::text)
       ON CONFLICT (key) DO NOTHING`);

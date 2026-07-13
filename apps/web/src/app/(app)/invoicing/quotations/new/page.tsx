@@ -63,6 +63,9 @@ export default function NewQuotationPage() {
   // Custom fields
   const [customFields, setCustomFields] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
+  const [noteTemplates, setNoteTemplates] = useState<any[]>([]);
+  const [notesContent, setNotesContent] = useState("");
+  const [notesPlaceholder, setNotesPlaceholder] = useState("Enter terms and conditions...");
 
   const customerRef = useRef<HTMLDivElement>(null);
   const productRef = useRef<HTMLTableCellElement>(null);
@@ -72,6 +75,14 @@ export default function NewQuotationPage() {
     api.listCustomers().then(setCustomers).catch((err) => console.error("Error loading customers", err));
     api.listProducts().then(setProducts).catch((err) => console.error("Error loading products", err));
     api.listCustomFields("quotation").then(setCfDefinitions).catch((err) => console.error("Error loading custom fields", err));
+    api.listNoteTemplates().then((tpls) => {
+      setNoteTemplates(tpls || []);
+      const def = tpls?.find((t: any) => t.isDefault);
+      if (def) {
+        setNotesContent(def.content);
+        setNotesPlaceholder(def.content);
+      }
+    }).catch((err) => console.error("Error loading note templates", err));
   }, []);
 
   useEffect(() => {
@@ -225,6 +236,7 @@ export default function NewQuotationPage() {
           validity_terms: validityTerms,
           payment_terms: paymentTerms,
           total_discount: financialSummary.totalDiscount,
+          notes_content: notesContent,
         },
       };
 
@@ -588,6 +600,47 @@ export default function NewQuotationPage() {
                     <option value="Net 45">Net 45</option>
                     <option value="Net 60">Net 60</option>
                   </select>
+                </div>
+
+                {/* Note templates selector & content */}
+                <div className="space-y-3 pt-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-zinc-500">Load Terms/Notes Template</Label>
+                    <select
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "empty") {
+                          setNotesContent("");
+                          setNotesPlaceholder("Enter terms and conditions...");
+                        } else {
+                          const t = noteTemplates.find((x) => x.id === val);
+                          if (t) {
+                            setNotesContent(t.content);
+                            setNotesPlaceholder(t.content);
+                          }
+                        }
+                      }}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={noteTemplates.find((x) => x.content === notesContent)?.id || "empty"}
+                    >
+                      <option value="empty">Blank / Empty Layout</option>
+                      {noteTemplates.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.title} {t.isDefault ? "(Default)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-zinc-500">Notes / Terms & Conditions (Comment)</Label>
+                    <textarea
+                      value={notesContent}
+                      onChange={(e) => setNotesContent(e.target.value)}
+                      placeholder={notesPlaceholder}
+                      className="flex min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>

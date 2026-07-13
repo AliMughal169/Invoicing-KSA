@@ -6,7 +6,7 @@ export type Locale = "en" | "ar";
 type Dict = Record<string, string>;
 const en: Dict = {
   workspace: "Workspace", dashboard: "Dashboard", contacts: "Contacts",
-  pipeline: "Pipeline", invoices: "Invoices", quotations: "Quotations", customers: "Customers",
+  pipeline: "Pipeline", invoices: "Invoices", creditNotes: "Credit Notes", debitNotes: "Debit Notes", quotations: "Quotations", customers: "Customers",
   products: "Products", accounting: "Accounting", logout: "Logout",
   newInvoice: "New invoice", recentInvoices: "Recent invoices", newQuotation: "New quotation",
   revenue: "Revenue", outstanding: "Outstanding", pipelineValue: "Pipeline value",
@@ -21,7 +21,7 @@ const en: Dict = {
 };
 const ar: Dict = {
   workspace: "مساحة العمل", dashboard: "لوحة التحكم", contacts: "جهات الاتصال",
-  pipeline: "خط الفرص", invoices: "الفواتير", quotations: "عروض الأسعار", customers: "العملاء",
+  pipeline: "خط الفرص", invoices: "الفواتير", creditNotes: "الإشعارات الدائنة", debitNotes: "الإشعارات المدينة", quotations: "عروض الأسعار", customers: "العملاء",
   products: "المنتجات", accounting: "المحاسبة", logout: "تسجيل الخروج",
   newInvoice: "فاتورة جديدة", recentInvoices: "الفواتير الأخيرة", newQuotation: "عرض سعر جديد",
   revenue: "الإيرادات", outstanding: "المستحق", pipelineValue: "قيمة الفرص",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, UploadCloud, Save, X, DollarSign, Percent } from "lucide-react";
@@ -31,6 +31,36 @@ interface ProductFormValues {
 export default function NewProductPage() {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  const [imageUrl, setImageUrl] = useState("");
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleUpload = async (file: File) => {
+    setUploadingImage(true);
+    try {
+      const res = await api.uploadFile(file);
+      setImageUrl(res.url);
+    } catch (err: any) {
+      alert("Failed to upload image: " + err.message);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleFileSelectChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleUpload(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const file = e.dataTransfer.files?.[0];
+    if (file) handleUpload(file);
+  };
 
   const { register, handleSubmit, watch, formState: { errors } } = useForm<ProductFormValues>({
     defaultValues: {
@@ -60,7 +90,10 @@ export default function NewProductPage() {
   const onSubmit = async (values: ProductFormValues) => {
     setBusy(true);
     try {
-      await api.createProduct(values);
+      await api.createProduct({
+        ...values,
+        imageUrl: imageUrl || undefined,
+      });
       router.push("/invoicing/products");
     } catch (err: any) {
       alert("Failed to save product: " + err.message);
@@ -113,10 +146,44 @@ export default function NewProductPage() {
             <CardContent className="space-y-6">
               <div className="grid md:grid-cols-3 gap-6 items-start">
                 {/* Drag and Drop Image Layout */}
-                <div className="border border-dashed border-zinc-800 bg-zinc-950/20 rounded-lg p-6 text-center hover:bg-zinc-950/40 transition cursor-pointer flex flex-col items-center justify-center min-h-[180px] group">
-                  <UploadCloud className="h-10 w-10 text-zinc-455 group-hover:text-indigo-400 transition mb-3" />
-                  <p className="text-sm font-semibold text-zinc-300">Drag & Drop Image</p>
-                  <p className="text-xs text-zinc-500 mt-1">PNG, JPG up to 5MB</p>
+                <div 
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  className="border border-dashed border-zinc-800 bg-zinc-950/20 rounded-lg p-6 text-center hover:bg-zinc-950/40 hover:border-zinc-700 transition cursor-pointer flex flex-col items-center justify-center min-h-[180px] group relative overflow-hidden"
+                >
+                  <input 
+                    type="file" 
+                    ref={fileInputRef} 
+                    className="hidden" 
+                    accept="image/*" 
+                    onChange={handleFileSelectChange} 
+                  />
+                  
+                  {uploadingImage ? (
+                    <div className="text-sm text-zinc-400">Uploading image...</div>
+                  ) : imageUrl ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img 
+                        src={imageUrl.startsWith("/") ? `${process.env.NEXT_PUBLIC_API_URL ?? ""}${imageUrl}` : imageUrl} 
+                        alt="Product preview" 
+                        className="absolute inset-0 w-full h-full object-cover" 
+                      />
+                      <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition flex items-center justify-center flex-col gap-1">
+                        <UploadCloud className="h-8 w-8 text-white" />
+                        <span className="text-xs text-white font-medium">Click or Drag to replace image</span>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <UploadCloud className="h-10 w-10 text-zinc-500 group-hover:text-indigo-400 transition mb-3" />
+                      <p className="text-sm font-semibold text-zinc-300">
+                        Drag & drop product picture here, or click to browse local storage files
+                      </p>
+                      <p className="text-xs text-zinc-500 mt-1">PNG, JPG up to 5MB</p>
+                    </>
+                  )}
                 </div>
 
                 <div className="md:col-span-2 space-y-4">

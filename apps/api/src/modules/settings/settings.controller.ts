@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, UseInterceptors, UploadedFile, BadRequestException, Res, Query, Delete } from "@nestjs/common";
+import { Controller, Get, Post, Body, Param, UseGuards, UseInterceptors, UploadedFile, BadRequestException, Res, Query, Delete, Patch } from "@nestjs/common";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { diskStorage } from "multer";
 import { extname, join } from "path";
@@ -87,8 +87,9 @@ export class SettingsController {
         },
       }),
       fileFilter: (req, file, cb) => {
-        if (!file.mimetype.match(/\/(jpg|jpeg|png)$/)) {
-          return cb(new BadRequestException("Only image files (jpg, jpeg, png) are allowed!"), false);
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|pdf|doc|docx|xls|xlsx|txt|csv|msword|vnd\.openxmlformats-officedocument\.wordprocessingml\.document|vnd\.ms-excel|vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet)$/) &&
+            !file.originalname.match(/\.(jpg|jpeg|png|pdf|doc|docx|xls|xlsx|txt|csv)$/i)) {
+          return cb(new BadRequestException("Only images, PDFs, and common document files are allowed!"), false);
         }
         cb(null, true);
       },
@@ -107,5 +108,41 @@ export class SettingsController {
       return res.status(404).send("File not found");
     }
     return res.sendFile(filePath);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get("note-templates")
+  listNoteTemplates() {
+    return this.settingsService.listNoteTemplates();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get("note-templates/:id")
+  getNoteTemplate(@Param("id") id: string) {
+    return this.settingsService.getNoteTemplate(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post("note-templates")
+  createNoteTemplate(@Body() b: { title: string; content: string; isDefault?: boolean }) {
+    return this.settingsService.createNoteTemplate(b);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch("note-templates/:id")
+  updateNoteTemplate(@Param("id") id: string, @Body() b: { title?: string; content?: string; isDefault?: boolean }) {
+    return this.settingsService.updateNoteTemplate(id, b);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete("note-templates/:id")
+  deleteNoteTemplate(@Param("id") id: string) {
+    return this.settingsService.deleteNoteTemplate(id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post("note-templates/:id/default")
+  setDefaultNoteTemplate(@Param("id") id: string) {
+    return this.settingsService.setDefaultNoteTemplate(id);
   }
 }

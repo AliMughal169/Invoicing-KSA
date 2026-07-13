@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Upload } from "lucide-react";
+import { Upload, Trash2 } from "lucide-react";
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -57,6 +58,7 @@ function addressInputProps(values: CustomerFormValues, key: keyof CustomerAddres
 
 export function CustomerForm({ initialValues, submitLabel, onSubmit, onCancel, busy, showStickButtons }: CustomerFormProps) {
   const [values, setValues] = useState<CustomerFormValues>(() => mergeForm(initialValues));
+  const [uploadingFiles, setUploadingFiles] = useState(false);
   const currencyOptions = useMemo(() => getCurrencyOptions(), []);
   const phoneCodeOptions = useMemo(() => getPhoneCodeOptions(), []);
   const languageOptions = useMemo(() => getLanguageOptions(), []);
@@ -85,14 +87,38 @@ export function CustomerForm({ initialValues, submitLabel, onSubmit, onCancel, b
     }));
   };
 
-  const handleFileChange = (files: FileList | null) => {
-    const list: CustomerDocument[] = files ? Array.from(files).map((file) => ({
-      name: file.name,
-      size: file.size,
-      type: file.type,
-      lastModified: file.lastModified,
-    })) : [];
-    setValues((current) => ({ ...current, documents: list }));
+  const handleFileChange = async (files: FileList | null) => {
+    if (!files || files.length === 0) return;
+
+    setUploadingFiles(true);
+    try {
+      const uploadPromises = Array.from(files).map(async (file) => {
+        const res = await api.uploadFile(file);
+        return {
+          name: file.name,
+          url: res.url,
+          size: file.size,
+          type: file.type,
+          lastModified: file.lastModified,
+        };
+      });
+      const uploadedDocs = await Promise.all(uploadPromises);
+      setValues((current) => ({
+        ...current,
+        documents: [...(current.documents || []), ...uploadedDocs],
+      }));
+    } catch (err: any) {
+      alert("Failed to upload document: " + (err.message || err));
+    } finally {
+      setUploadingFiles(false);
+    }
+  };
+
+  const handleRemoveFile = (idx: number) => {
+    setValues((current) => ({
+      ...current,
+      documents: current.documents.filter((_, i) => i !== idx),
+    }));
   };
 
   return (
@@ -283,25 +309,37 @@ export function CustomerForm({ initialValues, submitLabel, onSubmit, onCancel, b
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Customer documents</Label>
-            <label className="flex cursor-pointer flex-col gap-3 rounded-lg border border-dashed border-input p-4 text-sm text-muted-foreground">
+            <label className="flex cursor-pointer flex-col gap-3 rounded-lg border border-dashed border-input p-4 text-sm text-muted-foreground hover:bg-zinc-55/5">
               <div className="flex items-center gap-2 text-foreground">
                 <Upload className="h-4 w-4" />
-                Upload documents
+                {uploadingFiles ? "Uploading documents..." : "Upload documents"}
               </div>
               <span>Attach contracts, IDs, VAT certificates, or other supporting files.</span>
               <input
                 type="file"
                 multiple
                 className="hidden"
+                disabled={uploadingFiles}
                 onChange={(event) => handleFileChange(event.target.files)}
               />
             </label>
             {values.documents.length > 0 && (
               <div className="rounded-lg border bg-muted/30 p-3 text-sm space-y-2">
-                {values.documents.map((document) => (
-                  <div key={`${document.name}-${document.lastModified ?? 0}`} className="flex items-center justify-between gap-3">
-                    <span className="font-medium text-foreground">{document.name}</span>
-                    <span className="text-muted-foreground">{document.size ? `${Math.round(document.size / 1024)} KB` : "Attached"}</span>
+                {values.documents.map((document, idx) => (
+                  <div key={`${document.name}-${idx}`} className="flex items-center justify-between gap-3">
+                    <span className="font-medium text-foreground truncate max-w-[250px]">{document.name}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-muted-foreground">{document.size ? `${Math.round(document.size / 1024)} KB` : "Attached"}</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleRemoveFile(idx)}
+                        className="h-7 w-7 text-rose-500 hover:text-rose-700 hover:bg-rose-500/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -439,8 +477,8 @@ export function CustomerForm({ initialValues, submitLabel, onSubmit, onCancel, b
                 Cancel
               </Button>
             )}
-            <Button type="submit" disabled={busy}>
-              {busy ? "Saving..." : submitLabel}
+             <Button type="submit" disabled={busy || uploadingFiles}>
+              {busy ? "Saving..." : (uploadingFiles ? "Uploading..." : submitLabel)}
             </Button>
           </div>
         </div>
@@ -451,8 +489,8 @@ export function CustomerForm({ initialValues, submitLabel, onSubmit, onCancel, b
               Cancel
             </Button>
           )}
-          <Button type="submit" disabled={busy}>
-            {busy ? "Saving..." : submitLabel}
+          <Button type="submit" disabled={busy || uploadingFiles}>
+            {busy ? "Saving..." : (uploadingFiles ? "Uploading..." : submitLabel)}
           </Button>
         </div>
       )}

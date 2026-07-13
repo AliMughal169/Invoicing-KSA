@@ -152,8 +152,14 @@ export const api = {
     reorderLevel?: number;
     warehouseLocation?: string;
   }) => request<any>(`/invoicing/products/${id}`, { method: "PATCH", body: JSON.stringify(b) }),
-  listInvoices: () => request<any[]>("/invoicing/invoices"),
+  listInvoices: (type?: string) => request<any[]>(type ? `/invoicing/invoices?type=${type}` : "/invoicing/invoices"),
   getInvoice: (id: string) => request<any>(`/invoicing/invoices/${id}`),
+  createCorrectionDocument: (b: {
+    parentInvoiceId: string;
+    type: 'CREDIT_NOTE' | 'DEBIT_NOTE';
+    lines?: any[];
+    customFields?: Record<string, any>;
+  }) => request<any>("/invoicing/corrections", { method: "POST", body: JSON.stringify(b) }),
   createInvoice: (b: {
     customerId?: string;
     lines: { description: string; qty: number; unitPrice: number; vatRate?: number }[];
@@ -172,6 +178,8 @@ export const api = {
     request<any>(`/invoicing/invoices/${id}/convert-proforma`, { method: "POST", body: JSON.stringify(b) }),
   issueInvoice: (id: string) =>
     request<any>(`/invoicing/invoices/${id}/issue`, { method: "POST" }),
+  approveInvoice: (id: string) =>
+    request<any>(`/invoicing/invoices/${id}/approve`, { method: "POST" }),
   payInvoice: (id: string) =>
     request<any>(`/invoicing/invoices/${id}/pay`, { method: "POST" }),
 
@@ -340,6 +348,15 @@ export const api = {
   },
   createCustomField: (b: any) => request<any>("/settings/custom-fields", { method: "POST", body: JSON.stringify(b) }),
   deleteCustomField: (id: string) => request<any>(`/settings/custom-fields/${id}/delete`, { method: "POST" }),
+
+  // Note Templates
+  listNoteTemplates: () => request<any[]>("/settings/note-templates"),
+  getNoteTemplate: (id: string) => request<any>(`/settings/note-templates/${id}`),
+  createNoteTemplate: (b: any) => request<any>("/settings/note-templates", { method: "POST", body: JSON.stringify(b) }),
+  updateNoteTemplate: (id: string, b: any) => request<any>(`/settings/note-templates/${id}`, { method: "PATCH", body: JSON.stringify(b) }),
+  deleteNoteTemplate: (id: string) => request<any>(`/settings/note-templates/${id}`, { method: "DELETE" }),
+  setDefaultNoteTemplate: (id: string) => request<any>(`/settings/note-templates/${id}/default`, { method: "POST" }),
+
   uploadFile: async (file: File): Promise<{ url: string }> => {
     const fd = new FormData();
     fd.append("file", file);

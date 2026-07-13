@@ -425,12 +425,23 @@ export default function CustomerDetailPage() {
                           <p className="text-zinc-400">No documents uploaded.</p>
                         ) : (
                           <ul className="space-y-2">
-                            {documents.map((doc) => (
-                              <li key={`${doc.name}-${doc.lastModified ?? 0}`} className="flex items-center justify-between rounded-md border border-zinc-800 px-3 py-2 bg-zinc-900/20">
-                                <span className="font-medium text-zinc-200">{doc.name}</span>
-                                <span className="text-xs text-zinc-400">{doc.size ? `${Math.round(doc.size / 1024)} KB` : "Attached"}</span>
-                              </li>
-                            ))}
+                            {documents.map((doc) => {
+                              const fileUrl = (doc as any).url || `${process.env.NEXT_PUBLIC_API_URL ?? ""}/api/settings/uploads/${encodeURIComponent(doc.name)}`;
+                              return (
+                                <li key={`${doc.name}-${doc.lastModified ?? 0}`} className="flex items-center justify-between rounded-md border border-zinc-800 px-3 py-2 bg-zinc-900/20">
+                                  <a
+                                    href={fileUrl}
+                                    download={doc.name}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-medium text-zinc-200 hover:text-indigo-400 hover:underline transition-colors"
+                                  >
+                                    {doc.name}
+                                  </a>
+                                  <span className="text-xs text-zinc-400">{doc.size ? `${Math.round(doc.size / 1024)} KB` : "Attached"}</span>
+                                </li>
+                              );
+                            })}
                           </ul>
                         )}
                       </div>

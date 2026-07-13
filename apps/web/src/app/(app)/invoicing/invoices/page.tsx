@@ -20,7 +20,7 @@ export default function InvoicesPage() {
 
   async function reload() {
     try {
-      const data = await api.listInvoices();
+      const data = await api.listInvoices("INVOICE");
       setRows(data);
     } catch {}
   }

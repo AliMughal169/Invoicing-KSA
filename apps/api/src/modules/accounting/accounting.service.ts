@@ -228,6 +228,34 @@ export class AccountingService {
     await this.line(je.id, ar.id, 0, total);
   }
 
+  async postCreditNoteIssued(creditNoteId: string, subtotal: number, vat: number) {
+    const total = +(subtotal + vat).toFixed(2);
+    const ar = await this.accountByCode("1100");
+    const sales = await this.accountByCode("4000");
+    const vatAcc = await this.accountByCode("2100");
+    const je = await this.db.insertReturning<any>(
+      `INSERT INTO "__S__"."journal_entries"(memo, source_type, source_id)
+       VALUES ($1,'credit_note',$2) RETURNING *`,
+      [`Credit Note issued`, creditNoteId]);
+    await this.line(je.id, sales.id, subtotal, 0);
+    if (vat > 0) await this.line(je.id, vatAcc.id, vat, 0);
+    await this.line(je.id, ar.id, 0, total);
+  }
+
+  async postDebitNoteIssued(debitNoteId: string, subtotal: number, vat: number) {
+    const total = +(subtotal + vat).toFixed(2);
+    const ar = await this.accountByCode("1100");
+    const sales = await this.accountByCode("4000");
+    const vatAcc = await this.accountByCode("2100");
+    const je = await this.db.insertReturning<any>(
+      `INSERT INTO "__S__"."journal_entries"(memo, source_type, source_id)
+       VALUES ($1,'debit_note',$2) RETURNING *`,
+      [`Debit Note issued`, debitNoteId]);
+    await this.line(je.id, ar.id, total, 0);
+    await this.line(je.id, sales.id, 0, subtotal);
+    if (vat > 0) await this.line(je.id, vatAcc.id, 0, vat);
+  }
+
   /** Dr Expense accounts (per line) + Dr Input VAT / Cr Accounts Payable. */
   async postBillReceived(billId: string, lines: { expenseAccountId: string; lineSubtotal: number }[], vat: number) {
     const ap = await this.accountByCode("2200");

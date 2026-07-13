@@ -1,9 +1,15 @@
 import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common";
 import { TenantDb } from "../../core/database/tenant-db.service";
+import { PrismaService } from "../../core/database/prisma.service";
+import { TenantContextService } from "../../tenancy/tenant-context.service";
 
 @Injectable()
 export class SettingsService {
-  constructor(private readonly db: TenantDb) {}
+  constructor(
+    private readonly db: TenantDb,
+    private readonly prisma: PrismaService,
+    private readonly ctx: TenantContextService,
+  ) {}
 
   // Settings
   async getSettings() {
@@ -125,5 +131,111 @@ export class SettingsService {
     );
     if (affected === 0) throw new NotFoundException("Custom field definition not found");
     return { ok: true };
+  }
+
+  async listNoteTemplates() {
+    return this.db.query(
+      `SELECT id, title, content, is_default AS "isDefault", created_at AS "createdAt"
+       FROM "__S__"."note_templates"
+       ORDER BY created_at DESC`
+    );
+  }
+
+  async getNoteTemplate(id: string) {
+    const rows = await this.db.query(
+      `SELECT id, title, content, is_default AS "isDefault", created_at AS "createdAt"
+       FROM "__S__"."note_templates"
+       WHERE id = $1`,
+      [id]
+    );
+    if (!rows[0]) throw new NotFoundException("Template not found");
+    return rows[0];
+  }
+
+  async createNoteTemplate(input: { title: string; content: string; isDefault?: boolean }) {
+    const title = input.title;
+    const content = input.content;
+    const isDefault = input.isDefault ?? false;
+
+    const schema = this.ctx.getSchema()!;
+    return this.prisma.$transaction(async (tx) => {
+      const exec = async (sql: string, params: any[] = []) => {
+        return tx.$executeRawUnsafe(sql.replace(/__S__/g, schema), ...params);
+      };
+      const insert = async <T = any>(sql: string, params: any[] = []) => {
+        const rows = await tx.$queryRawUnsafe<T[]>(sql.replace(/__S__/g, schema), ...params);
+        return rows[0];
+      };
+
+      if (isDefault) {
+        await exec(`UPDATE "__S__"."note_templates" SET is_default = false`);
+      }
+
+      return insert<any>(
+        `INSERT INTO "__S__"."note_templates" (title, content, is_default)
+         VALUES ($1, $2, $3)
+         RETURNING id, title, content, is_default AS "isDefault", created_at AS "createdAt"`,
+        [title, content, isDefault]
+      );
+    });
+  }
+
+  async updateNoteTemplate(id: string, input: { title?: string; content?: string; isDefault?: boolean }) {
+    const template = await this.getNoteTemplate(id);
+    const title = input.title ?? template.title;
+    const content = input.content ?? template.content;
+    const isDefault = input.isDefault ?? template.isDefault;
+
+    const schema = this.ctx.getSchema()!;
+    return this.prisma.$transaction(async (tx) => {
+      const exec = async (sql: string, params: any[] = []) => {
+        return tx.$executeRawUnsafe(sql.replace(/__S__/g, schema), ...params);
+      };
+      const query = async <T = any>(sql: string, params: any[] = []) => {
+        const rows = await tx.$queryRawUnsafe<T[]>(sql.replace(/__S__/g, schema), ...params);
+        return rows[0];
+      };
+
+      if (isDefault) {
+        await exec(`UPDATE "__S__"."note_templates" SET is_default = false WHERE id <> $1`, [id]);
+      }
+
+      return query<any>(
+        `UPDATE "__S__"."note_templates"
+         SET title = $1, content = $2, is_default = $3
+         WHERE id = $4
+         RETURNING id, title, content, is_default AS "isDefault", created_at AS "createdAt"`,
+        [title, content, isDefault, id]
+      );
+    });
+  }
+
+  async deleteNoteTemplate(id: string) {
+    await this.getNoteTemplate(id);
+    await this.db.exec(`DELETE FROM "__S__"."note_templates" WHERE id = $1`, [id]);
+    return { success: true };
+  }
+
+  async setDefaultNoteTemplate(id: string) {
+    await this.getNoteTemplate(id);
+    const schema = this.ctx.getSchema()!;
+    return this.prisma.$transaction(async (tx) => {
+      const exec = async (sql: string, params: any[] = []) => {
+        return tx.$executeRawUnsafe(sql.replace(/__S__/g, schema), ...params);
+      };
+      const query = async <T = any>(sql: string, params: any[] = []) => {
+        const rows = await tx.$queryRawUnsafe<T[]>(sql.replace(/__S__/g, schema), ...params);
+        return rows[0];
+      };
+
+      await exec(`UPDATE "__S__"."note_templates" SET is_default = false`);
+      return query<any>(
+        `UPDATE "__S__"."note_templates"
+         SET is_default = true
+         WHERE id = $1
+         RETURNING id, title, content, is_default AS "isDefault", created_at AS "createdAt"`,
+        [id]
+      );
+    });
   }
 }

@@ -50,7 +50,6 @@ export default function NewInvoicePage() {
   const [issueDate, setIssueDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [supplyDate, setSupplyDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [paymentTerms, setPaymentTerms] = useState("Net 30");
-  const [bankDetails, setBankDetails] = useState("Saudi National Bank (SNB)");
 
   // Lines
   const [lines, setLines] = useState<LineItem[]>([{ ...EMPTY_LINE }]);
@@ -60,6 +59,9 @@ export default function NewInvoicePage() {
   // Custom fields
   const [customFields, setCustomFields] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
+  const [noteTemplates, setNoteTemplates] = useState<any[]>([]);
+  const [notesContent, setNotesContent] = useState("");
+  const [notesPlaceholder, setNotesPlaceholder] = useState("Enter terms and conditions...");
 
   const customerRef = useRef<HTMLDivElement>(null);
   const productRef = useRef<HTMLTableCellElement>(null);
@@ -69,6 +71,14 @@ export default function NewInvoicePage() {
     api.listCustomers().then(setCustomers).catch((err) => console.error("Error loading customers", err));
     api.listProducts().then(setProducts).catch((err) => console.error("Error loading products", err));
     api.listCustomFields("invoice").then(setCfDefinitions).catch((err) => console.error("Error loading custom fields", err));
+    api.listNoteTemplates().then((tpls) => {
+      setNoteTemplates(tpls || []);
+      const def = tpls?.find((t: any) => t.isDefault);
+      if (def) {
+        setNotesContent(def.content);
+        setNotesPlaceholder(def.content);
+      }
+    }).catch((err) => console.error("Error loading note templates", err));
   }, []);
 
   useEffect(() => {
@@ -223,8 +233,8 @@ export default function NewInvoicePage() {
           invoice_type: isSimplified ? "simplified" : "standard",
           supply_date: supplyDate,
           payment_terms: paymentTerms,
-          bank_details: bankDetails,
           total_discount: financialSummary.totalDiscount,
+          notes_content: notesContent,
         },
       };
 
@@ -599,18 +609,46 @@ export default function NewInvoicePage() {
                   </div>
                 )}
 
-                {/* Bank Details Selector */}
-                <div className="space-y-1">
-                  <Label className="text-xs font-bold text-zinc-500">Deposit Bank Details</Label>
-                  <select
-                    value={bankDetails}
-                    onChange={(e) => setBankDetails(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  >
-                    <option value="Saudi National Bank (SNB)">Saudi National Bank (SNB) - Main Corporate A/C</option>
-                    <option value="Al Rajhi Bank">Al Rajhi Bank - Corporate SAR A/C</option>
-                    <option value="Riyad Bank">Riyad Bank - VAT Settlement A/C</option>
-                  </select>
+
+                {/* Note templates selector & content */}
+                <div className="space-y-3 pt-2">
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-zinc-500">Load Terms/Notes Template</Label>
+                    <select
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === "empty") {
+                          setNotesContent("");
+                          setNotesPlaceholder("Enter terms and conditions...");
+                        } else {
+                          const t = noteTemplates.find((x) => x.id === val);
+                          if (t) {
+                            setNotesContent(t.content);
+                            setNotesPlaceholder(t.content);
+                          }
+                        }
+                      }}
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                      value={noteTemplates.find((x) => x.content === notesContent)?.id || "empty"}
+                    >
+                      <option value="empty">Blank / Empty Layout</option>
+                      {noteTemplates.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.title} {t.isDefault ? "(Default)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <Label className="text-xs font-bold text-zinc-500">Notes / Terms & Conditions (Comment)</Label>
+                    <textarea
+                      value={notesContent}
+                      onChange={(e) => setNotesContent(e.target.value)}
+                      placeholder={notesPlaceholder}
+                      className="flex min-h-[100px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    />
+                  </div>
                 </div>
               </CardContent>
             </Card>

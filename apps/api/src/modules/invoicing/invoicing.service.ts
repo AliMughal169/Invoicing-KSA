@@ -475,7 +475,15 @@ export class InvoicingService {
   }
 
   // Invoices
-  async listInvoices() {
+  async listInvoices(type?: string) {
+    if (type) {
+      return this.db.query(`
+        SELECT i.*, c.name AS customer_name
+        FROM "__S__"."invoices" i
+        LEFT JOIN "__S__"."customers" c ON c.id = i.customer_id
+        WHERE i.document_type = $1
+        ORDER BY i.created_at DESC`, [type]);
+    }
     return this.db.query(`
       SELECT i.*, c.name AS customer_name
       FROM "__S__"."invoices" i
@@ -523,8 +531,8 @@ export class InvoicingService {
 
     const invoice = await this.db.insertReturning<any>(
       `INSERT INTO "__S__"."invoices"
-       (number, customer_id, issue_date, due_date, status, subtotal, vat_total, total, is_tax_invoice, custom_fields)
-       VALUES ($1,$2, COALESCE($3::date, current_date), $4::date, 'draft', $5::numeric, $6::numeric, $7::numeric, $8, $9::jsonb)
+       (number, customer_id, issue_date, due_date, status, subtotal, vat_total, total, is_tax_invoice, custom_fields, document_type)
+       VALUES ($1,$2, COALESCE($3::date, current_date), $4::date, 'draft', $5::numeric, $6::numeric, $7::numeric, $8, $9::jsonb, 'INVOICE')
        RETURNING *`,
       [number, input.customerId, input.issueDate ?? null, input.dueDate ?? null,
        subtotal, vatTotal, total, isTaxInvoice, JSON.stringify(input.customFields || {})],
@@ -535,8 +543,8 @@ export class InvoicingService {
         `INSERT INTO "__S__"."invoice_lines"
          (invoice_id, product_id, description, qty, unit_price, vat_rate, line_total)
          VALUES ($1,$2,$3,$4::numeric,$5::numeric,$6::numeric,$7::numeric)`,
-        [invoice.id, l.productId || null, l.description, l.qty, l.unitPrice, l.vatRate,
-         l.lineSubtotal + l.lineVat],
+         [invoice.id, l.productId || null, l.description, l.qty, l.unitPrice, l.vatRate,
+          l.lineSubtotal + l.lineVat],
       );
       if (l.productId) {
         await this.db.exec(
@@ -550,10 +558,73 @@ export class InvoicingService {
     return invoice;
   }
 
+  async createCorrectionDocument(parentInvoiceId: string, type: 'CREDIT_NOTE' | 'DEBIT_NOTE', input?: {
+    lines?: InvoiceLineInput[];
+    customFields?: Record<string, any>;
+  }) {
+    const parent = await this.getInvoice(parentInvoiceId);
+    if (!parent) throw new NotFoundException("Parent invoice not found");
+
+    const linesToUse = input?.lines && input.lines.length > 0 ? input.lines : parent.lines.map((l: any) => ({
+      productId: l.product_id,
+      description: l.description,
+      qty: Number(l.qty),
+      unitPrice: Number(l.unit_price),
+      vatRate: Number(l.vat_rate),
+    }));
+
+    const customFieldsToUse = input?.customFields ?? parent.custom_fields;
+
+    let subtotal = 0, vatTotal = 0;
+    const computed = linesToUse.map((l: any) => {
+      const lineSubtotal = +(l.qty * l.unitPrice).toFixed(2);
+      const vatRate = parent.is_tax_invoice ? (l.vatRate ?? 15) : 0;
+      const lineVat = +(lineSubtotal * (vatRate / 100)).toFixed(2);
+      subtotal += lineSubtotal;
+      vatTotal += lineVat;
+      return { ...l, lineSubtotal, lineVat, vatRate };
+    });
+    const total = +(subtotal + vatTotal).toFixed(2);
+
+    const prefix = type === "CREDIT_NOTE" ? "CN" : "DN";
+    const number = `${prefix}-${Date.now()}`;
+
+    const invoice = await this.db.insertReturning<any>(
+      `INSERT INTO "__S__"."invoices"
+       (number, customer_id, issue_date, due_date, status, subtotal, vat_total, total, is_tax_invoice, custom_fields, document_type, original_invoice_id)
+       VALUES ($1,$2, current_date, null, 'draft', $3::numeric, $4::numeric, $5::numeric, $6, $7::jsonb, $8, $9)
+       RETURNING *`,
+      [number, parent.customer_id, subtotal, vatTotal, total, parent.is_tax_invoice, JSON.stringify(customFieldsToUse || {}), type, parentInvoiceId],
+    );
+
+    for (const l of computed) {
+      await this.db.exec(
+        `INSERT INTO "__S__"."invoice_lines"
+         (invoice_id, product_id, description, qty, unit_price, vat_rate, line_total)
+         VALUES ($1,$2,$3,$4::numeric,$5::numeric,$6::numeric,$7::numeric)`,
+        [invoice.id, l.productId || null, l.description, l.qty, l.unitPrice, l.vatRate, l.lineSubtotal + l.lineVat],
+      );
+      if (l.productId) {
+        await this.db.exec(
+          `UPDATE "__S__"."products"
+           SET qty_reserved = qty_reserved + $1
+           WHERE id = $2 AND track_inventory = true`,
+          [l.qty, l.productId]
+        );
+      }
+    }
+    return this.getInvoice(invoice.id);
+  }
+
   async issueInvoice(id: string) {
     const inv = await this.getInvoice(id);
     if (inv.status === "issued" || inv.status === "paid") {
       throw new BadRequestException(`Invoice already ${inv.status}`);
+    }
+
+    if (inv.document_type === "CREDIT_NOTE") {
+      await this.processCreditNoteInventoryAndLedger(id);
+      return this.getInvoice(id);
     }
 
     const schema = this.ctx.getSchema()!;
@@ -603,8 +674,62 @@ export class InvoicingService {
     const tenantId = this.ctx.getTenantId()!;
     const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
     await this.zatca.signAndChain(id, tenant?.name ?? "Seller", "300000000000003");
-    await this.accounting.postInvoiceIssued(id, Number(inv.subtotal), Number(inv.vat_total));
+    
+    if (inv.document_type === "DEBIT_NOTE") {
+      await this.accounting.postDebitNoteIssued(id, Number(inv.subtotal), Number(inv.vat_total));
+    } else {
+      await this.accounting.postInvoiceIssued(id, Number(inv.subtotal), Number(inv.vat_total));
+    }
     return this.getInvoice(id);
+  }
+
+  async processCreditNoteInventoryAndLedger(id: string) {
+    const inv = await this.getInvoice(id);
+    const schema = this.ctx.getSchema()!;
+
+    await this.prisma.$transaction(async (tx) => {
+      const query = async <T = any>(sql: string, params: any[] = []) => {
+        return tx.$queryRawUnsafe<T[]>(sql.replace(/__S__/g, schema), ...params);
+      };
+      const exec = async (sql: string, params: any[] = []) => {
+        return tx.$executeRawUnsafe(sql.replace(/__S__/g, schema), ...params);
+      };
+
+      const lines = await query(`SELECT * FROM "__S__"."invoice_lines" WHERE invoice_id = $1`, [id]);
+
+      for (const l of lines) {
+        if (l.product_id) {
+          const pRows = await query(`SELECT * FROM "__S__"."products" WHERE id = $1`, [l.product_id]);
+          if (pRows[0]) {
+            const prod = pRows[0];
+            const qty = Number(l.qty);
+            if (prod.track_inventory) {
+              // Add product line quantities BACK into qty_on_hand (returns), and release qty_reserved
+              await exec(
+                `UPDATE "__S__"."products" 
+                 SET qty_on_hand = qty_on_hand + $1,
+                     qty_reserved = qty_reserved - $1
+                 WHERE id = $2`,
+                [qty, l.product_id]
+              );
+              // Log stock movement with type 'RETURNS'
+              await exec(
+                `INSERT INTO "__S__"."stock_movements" (product_id, quantity, type, reference_id)
+                 VALUES ($1, $2::numeric, 'RETURNS', $3)`,
+                [l.product_id, qty, id]
+              );
+            }
+          }
+        }
+      }
+
+      await exec(`UPDATE "__S__"."invoices" SET status = 'issued', updated_at = now() WHERE id = $1`, [id]);
+    });
+
+    const tenantId = this.ctx.getTenantId()!;
+    const tenant = await this.prisma.tenant.findUnique({ where: { id: tenantId } });
+    await this.zatca.signAndChain(id, tenant?.name ?? "Seller", "300000000000003");
+    await this.accounting.postCreditNoteIssued(id, Number(inv.subtotal), Number(inv.vat_total));
   }
 
   async markPaid(id: string) {

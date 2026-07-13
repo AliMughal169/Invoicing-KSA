@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Plus, Trash2, ShieldAlert, Upload, Image as ImageIcon, CheckCircle } from "lucide-react";
+import { Plus, Trash2, ShieldAlert, Upload, Image as ImageIcon, CheckCircle, FileText, Star, Sparkles, Pencil } from "lucide-react";
+import Link from "next/link";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { PageHeader, PageShell } from "@/components/page-shell";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from "@/components/ui/dialog";
 
 export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState("profile");
@@ -39,6 +41,15 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
+  // Note Templates state
+  const [noteTemplates, setNoteTemplates] = useState<any[]>([]);
+  const [loadingNotes, setLoadingNotes] = useState(false);
+  const [notesDialogOpen, setNotesDialogOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<any | null>(null);
+  const [noteTitle, setNoteTitle] = useState("");
+  const [noteContent, setNoteContent] = useState("");
+  const [noteIsDefault, setNoteIsDefault] = useState(false);
+
   async function reloadSettings() {
     try {
       const data = await api.getSettings();
@@ -57,10 +68,86 @@ export default function SettingsPage() {
     }
   }
 
+  async function reloadNoteTemplates() {
+    setLoadingNotes(true);
+    try {
+      const data = await api.listNoteTemplates();
+      setNoteTemplates(data || []);
+    } catch (err) {
+      console.error("Failed to load note templates:", err);
+    } finally {
+      setLoadingNotes(false);
+    }
+  }
+
   useEffect(() => {
     reloadSettings();
     reloadCustomFields();
+    reloadNoteTemplates();
   }, []);
+
+  const handleOpenNewNote = () => {
+    setEditingTemplate(null);
+    setNoteTitle("");
+    setNoteContent("");
+    setNoteIsDefault(false);
+    setNotesDialogOpen(true);
+  };
+
+  const handleOpenEditNote = (tpl: any) => {
+    setEditingTemplate(tpl);
+    setNoteTitle(tpl.title);
+    setNoteContent(tpl.content);
+    setNoteIsDefault(tpl.isDefault);
+    setNotesDialogOpen(true);
+  };
+
+  const handleSaveNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!noteTitle.trim() || !noteContent.trim()) return;
+
+    try {
+      if (editingTemplate) {
+        await api.updateNoteTemplate(editingTemplate.id, {
+          title: noteTitle,
+          content: noteContent,
+          isDefault: noteIsDefault,
+        });
+      } else {
+        await api.createNoteTemplate({
+          title: noteTitle,
+          content: noteContent,
+          isDefault: noteIsDefault,
+        });
+      }
+      setNotesDialogOpen(false);
+      reloadNoteTemplates();
+    } catch (err: any) {
+      console.error("Failed to save note template:", err);
+      setMessage({ text: err.message || "Failed to save note template", type: "error" });
+    }
+  };
+
+  const handleDeleteNote = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this template?")) return;
+    try {
+      await api.deleteNoteTemplate(id);
+      reloadNoteTemplates();
+    } catch (err: any) {
+      console.error("Failed to delete note template:", err);
+      setMessage({ text: err.message || "Failed to delete note template", type: "error" });
+    }
+  };
+
+  const handleToggleDefaultNote = async (id: string) => {
+    try {
+      await api.setDefaultNoteTemplate(id);
+      reloadNoteTemplates();
+    } catch (err: any) {
+      console.error("Failed to set default note template:", err);
+      setMessage({ text: err.message || "Failed to set default note template", type: "error" });
+    }
+  };
 
   async function handleProfileSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -151,10 +238,11 @@ export default function SettingsPage() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full max-w-md grid-cols-3 mb-6">
+        <TabsList className="grid w-full max-w-lg grid-cols-4 mb-6">
           <TabsTrigger value="profile">Company Profile</TabsTrigger>
           <TabsTrigger value="print">Print & Layout</TabsTrigger>
           <TabsTrigger value="fields">Custom Fields</TabsTrigger>
+          <TabsTrigger value="notes">Note Templates</TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">
@@ -540,7 +628,155 @@ export default function SettingsPage() {
             </Card>
           </div>
         </TabsContent>
+
+        <TabsContent value="notes">
+          <Card className="shadow-sm border-zinc-200">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-lg font-bold text-zinc-800 flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-indigo-500" />
+                  Templates Catalog
+                </CardTitle>
+                <CardDescription>
+                  All configured notes and terms. A selected default template will automatically hydrate new invoices and quotations.
+                </CardDescription>
+              </div>
+              <Button onClick={handleOpenNewNote} className="bg-zinc-800 text-white hover:bg-zinc-700 flex items-center gap-2">
+                <Plus className="h-4 w-4" /> New Template
+              </Button>
+            </CardHeader>
+            <CardContent className="p-0">
+              {loadingNotes ? (
+                <div className="p-8 text-center text-zinc-500">Loading templates...</div>
+              ) : noteTemplates.length === 0 ? (
+                <div className="p-12 text-center text-zinc-500 flex flex-col items-center justify-center gap-2">
+                  <Sparkles className="h-8 w-8 text-zinc-300" />
+                  <p className="font-semibold text-zinc-700">No templates found</p>
+                  <p className="text-xs text-zinc-500">Click &apos;New Template&apos; to create your first terms template.</p>
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader className="bg-zinc-50">
+                    <TableRow>
+                      <TableHead className="w-[25%] font-bold text-zinc-700">Title</TableHead>
+                      <TableHead className="w-[50%] font-bold text-zinc-700">Preview</TableHead>
+                      <TableHead className="w-[15%] text-center font-bold text-zinc-700">Default Status</TableHead>
+                      <TableHead className="w-[10%] text-right font-bold text-zinc-700"></TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {noteTemplates.map((tpl) => (
+                      <TableRow key={tpl.id} className="hover:bg-zinc-50/50">
+                        <TableCell className="font-semibold text-zinc-800">{tpl.title}</TableCell>
+                        <TableCell className="text-zinc-600 text-xs truncate max-w-[400px]">
+                          {tpl.content}
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleToggleDefaultNote(tpl.id)}
+                            className={`hover:bg-zinc-100 ${
+                              tpl.isDefault ? "text-amber-500" : "text-zinc-300 hover:text-zinc-400"
+                            }`}
+                          >
+                            <Star className="h-5 w-5 fill-current" />
+                          </Button>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleOpenEditNote(tpl)}
+                              className="text-zinc-500 hover:text-zinc-800"
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleDeleteNote(tpl.id)}
+                              className="text-rose-500 hover:text-rose-700"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      <Dialog open={notesDialogOpen} onOpenChange={setNotesDialogOpen}>
+        <DialogContent className="max-w-md bg-white border border-zinc-200">
+          <form onSubmit={handleSaveNote} className="space-y-4">
+            <DialogHeader>
+              <DialogTitle className="text-zinc-850 font-bold">
+                {editingTemplate ? "Edit Note Template" : "New Note Template"}
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="noteTitle" className="text-xs font-bold uppercase tracking-wider text-zinc-500">
+                  Title
+                </Label>
+                <Input
+                  id="noteTitle"
+                  placeholder="e.g. Standard Payment Terms, Arabic Note, etc."
+                  value={noteTitle}
+                  onChange={(e) => setNoteTitle(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="noteContent" className="text-xs font-bold uppercase tracking-wider text-zinc-500">
+                  Content Template (Notes / Terms)
+                </Label>
+                <textarea
+                  id="noteContent"
+                  placeholder="Write the notes or Terms and Conditions here..."
+                  className="flex min-h-[120px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                  value={noteContent}
+                  onChange={(e) => setNoteContent(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="flex items-center space-x-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="noteIsDefault"
+                  checked={noteIsDefault}
+                  onChange={(e) => setNoteIsDefault(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <Label htmlFor="noteIsDefault" className="text-xs font-semibold text-zinc-650 cursor-pointer select-none">
+                  Set as default template for new documents
+                </Label>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <DialogClose asChild>
+                <Button type="button" variant="outline">
+                  Cancel
+                </Button>
+              </DialogClose>
+              <Button type="submit" className="bg-zinc-800 hover:bg-zinc-700 text-white">
+                Save Template
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </PageShell>
   );
 }

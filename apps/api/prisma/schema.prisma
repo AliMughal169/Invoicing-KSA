@@ -54,19 +54,23 @@ enum InvoiceStatus {
 }
 
 model Invoice {
-  id           String        @id @default(cuid())
-  number       String
-  customerId   String?       @map("customer_id")
-  issueDate    DateTime      @default(now()) @map("issue_date")
-  dueDate      DateTime?     @map("due_date")
-  status       InvoiceStatus @default(DRAFT)
-  subtotal     Decimal       @db.Decimal(14, 2)
-  vatTotal     Decimal       @db.Decimal(14, 2) @map("vat_total")
-  total        Decimal       @db.Decimal(14, 2)
-  isTaxInvoice Boolean       @default(true) @map("is_tax_invoice")
-  customFields Json          @default("{}") @map("custom_fields")
-  createdAt    DateTime      @default(now()) @map("created_at")
-  updatedAt    DateTime      @updatedAt @map("updated_at")
+  id                String        @id @default(cuid())
+  number            String
+  customerId        String?       @map("customer_id")
+  issueDate         DateTime      @default(now()) @map("issue_date")
+  dueDate           DateTime?     @map("due_date")
+  status            InvoiceStatus @default(DRAFT)
+  subtotal          Decimal       @db.Decimal(14, 2)
+  vatTotal          Decimal       @db.Decimal(14, 2) @map("vat_total")
+  total             Decimal       @db.Decimal(14, 2)
+  isTaxInvoice      Boolean       @default(true) @map("is_tax_invoice")
+  customFields      Json          @default("{}") @map("custom_fields")
+  documentType      String        @default("INVOICE") @map("document_type")
+  originalInvoiceId String?       @map("original_invoice_id")
+  originalInvoice   Invoice?      @relation("InvoiceToCorrection", fields: [originalInvoiceId], references: [id])
+  corrections       Invoice[]     @relation("InvoiceToCorrection")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
 
   @@map("invoices")
 }
@@ -150,3 +154,12 @@ model BillLine {
   @@map("bill_lines")
 }
 
+model NoteTemplate {
+  id        String   @id @default(uuid())
+  title     String
+  content   String   @db.Text
+  isDefault Boolean  @default(false) @map("is_default")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("note_templates")
+}
